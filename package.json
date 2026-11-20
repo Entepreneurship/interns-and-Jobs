@@ -1,0 +1,14 @@
+{
+  "name": "brighterworks",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "intern"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=intern-placement-system",
+    "build": "npm run build --workspace=intern-placement-system",
+    "start": "npm run start --workspace=intern-placement-system",
+    "lint": "npm run type-check --workspace=intern-placement-system"
+  }
+}

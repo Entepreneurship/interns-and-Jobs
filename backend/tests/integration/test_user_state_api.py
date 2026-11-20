@@ -1,0 +1,522 @@
+"""B4 HTTP tests — saved, applications and subscription against the isolated
+seeded SQLite database via the mounted sub-app.
+
+R1d: these endpoints now derive the actor from the Bearer token, so every test
+logs in as a real demo account and asserts that identity comes from the token
+(not from a user_id/org_id the client sends).
+"""
+
+STUDENT = "amina@makerere.ac.ug"
+EMPLOYER = "hiring@lumenlabs.example"  # linked to org o4
+ADMIN = "office@makerere.ac.ug"
+JOBSEEKER = "brian@example.com"
+PASSWORD = "password123"
+
+
+def _login(client, email: str) -> dict:
+    resp = client.post("/auth/login", json={"username": email, "password": PASSWORD})
+    assert resp.status_code == 200, resp.text
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+def _user_id(client, email: str) -> str:
+    return client.get("/auth/me", headers=_login(client, email)).json()["id"]
+
+
+# Placement eligibility requirements (course, min CGPA, required document types).
+# Mirrors backend/app/infrastructure/seed.py so apply tests can opt into the
+# new eligibility check (P0#2).
+PLACEMENT_REQS: dict[str, tuple[str, float, list[str]]] = {
+    "p1": ("Computer Science", 3.5, ["transcript", "student_id", "portfolio"]),
+    "p2": ("Computer Science", 3.5, ["transcript", "national_id", "recommendation"]),
+    "p3": ("Computer Science", 3.5, ["transcript", "portfolio"]),
+}
+
+
+def _eligible_student(client, placement_id: str) -> dict:
+    """Log in as the demo student, save a qualifying profile and upload the
+    placement's required documents so the application passes eligibility."""
+    course, cgpa, docs = PLACEMENT_REQS[placement_id]
+    h = _login(client, STUDENT)
+    client.put(
+        "/profile",
+        json={"course": course, "cgpa": cgpa, "university": "Makerere University"},
+        headers=h,
+    )
+    for doc_type in docs:
+        client.put(
+            f"/documents/{doc_type}",
+            files={"file": (f"{doc_type}.pdf", b"doc content", "application/pdf")},
+            headers=h,
+        )
+    return h
+
+
+def _sandbox_payment_method(client, headers: dict) -> str:
+    response = client.post(
+        "/billing/payment-methods",
+        json={"type": "card", "details": {"sandbox": True}},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["id"]
+
+
+# ---- Auth enforcement ------------------------------------------------------
+
+
+def test_user_state_requires_a_token(client):
+    assert client.get("/saved").status_code == 401
+    assert client.post("/saved/toggle", json={"placement_id": "p1"}).status_code == 401
+    assert client.post("/applications", json={"placement_id": "p1"}).status_code == 401
+    assert client.get("/applications").status_code == 401
+    assert client.get("/billing/subscriptions/current").status_code == 401
+
+
+# ---- Saved -----------------------------------------------------------------
+
+
+def test_toggle_saved_then_list(client):
+    h = _login(client, STUDENT)
+    resp = client.post("/saved/toggle", json={"placement_id": "p1"}, headers=h)
+    assert resp.status_code == 200
+    assert resp.json()["saved"] is True
+    assert resp.json()["saved_ids"] == ["p1"]
+
+    assert client.get("/saved", headers=h).json()["saved_ids"] == ["p1"]
+
+    # toggling again removes it
+    resp = client.post("/saved/toggle", json={"placement_id": "p1"}, headers=h)
+    assert resp.json()["saved"] is False
+    assert resp.json()["saved_ids"] == []
+
+
+def test_saved_is_per_account(client):
+    a = _login(client, STUDENT)
+    b = _login(client, JOBSEEKER)
+    client.post("/saved/toggle", json={"placement_id": "p1"}, headers=a)
+    # a bookmark by one account is invisible to another — identity is the token
+    assert client.get("/saved", headers=b).json()["saved_ids"] == []
+
+
+# ---- Applications ----------------------------------------------------------
+
+
+def test_apply_persists_and_is_idempotent(client):
+    h = _eligible_student(client, "p1")
+    uid = _user_id(client, STUDENT)
+    resp = client.post(
+        "/applications", json={"placement_id": "p1", "statement": "keen"}, headers=h
+    )
+    assert resp.status_code == 201
+    created = resp.json()
+    assert created["status"] == "Submitted"
+    assert created["placement_id"] == "p1"
+    # the applicant id is the token's user, whatever the client tried to send
+    assert created["user_id"] == uid
+
+    # applying again returns the same row (idempotent)
+    resp2 = client.post("/applications", json={"placement_id": "p1"}, headers=h)
+    assert resp2.status_code == 201
+    assert resp2.json()["id"] == created["id"]
+
+    assert client.get("/applications", headers=h).json()["total"] == 1
+
+
+def test_ignored_body_user_id_cannot_spoof_another_account(client):
+    h = _eligible_student(client, "p2")
+    uid = _user_id(client, STUDENT)
+    resp = client.post(
+        "/applications", json={"placement_id": "p2", "user_id": "someone-else"}, headers=h
+    )
+    assert resp.status_code == 201
+    assert resp.json()["user_id"] == uid
+
+
+def test_applicants_requires_hiring_role(client):
+    student = _login(client, STUDENT)
+    employer = _login(client, EMPLOYER)
+    # student can't see who applied
+    assert client.get("/placements/p1/applicants", headers=student).status_code == 403
+    # employer (hiring side) can
+    assert client.get("/placements/p1/applicants", headers=employer).status_code == 200
+
+
+def test_apply_unknown_placement_is_404(client):
+    h = _login(client, STUDENT)
+    resp = client.post("/applications", json={"placement_id": "does-not-exist"}, headers=h)
+    assert resp.status_code == 404
+
+
+def test_student_can_track_and_withdraw_own_application(client):
+    h = _eligible_student(client, "p2")
+    created = client.post(
+        "/applications", json={"placement_id": "p2"}, headers=h
+    ).json()
+    tracked = client.get("/applications", headers=h).json()
+    assert tracked["total"] == 1
+    assert tracked["items"][0]["id"] == created["id"]
+
+    withdrawn = client.post(
+        f"/applications/{created['id']}/withdraw", headers=h
+    )
+    assert withdrawn.status_code == 200
+    assert withdrawn.json()["status"] == "Withdrawn"
+
+
+def test_student_cannot_withdraw_another_account_application(client):
+    owner = _eligible_student(client, "p3")
+    created = client.post(
+        "/applications", json={"placement_id": "p3"}, headers=owner
+    ).json()
+    other = _login(client, JOBSEEKER)
+    response = client.post(
+        f"/applications/{created['id']}/withdraw", headers=other
+    )
+    assert response.status_code == 403
+
+
+# ---- Student profile -------------------------------------------------------
+
+
+def test_student_profile_is_empty_until_saved_then_persists(client):
+    h = _login(client, STUDENT)
+    empty = client.get("/profile", headers=h)
+    assert empty.status_code == 200
+    assert empty.json()["course"] == ""
+    assert empty.json()["skills"] == []
+
+    updated = client.put(
+        "/profile",
+        json={
+            "course": " Design ",
+            "year": "Year 3",
+            "cgpa": 3.7,
+            "university": "Makerere University",
+            "skills": ["Figma", "Figma", " UI Design "],
+        },
+        headers=h,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["course"] == "Design"
+    assert updated.json()["skills"] == ["Figma", "UI Design"]
+    assert client.get("/profile", headers=h).json()["university"] == "Makerere University"
+
+
+def test_student_profile_persists_skill_confidence_and_source(client):
+    h = _login(client, STUDENT)
+    updated = client.put(
+        "/profile",
+        json={
+            "course": "Design",
+            "skills": ["Figma", "UI Design"],
+            "skills_confidence": {"Figma": 3, "UI Design": 2, "Removed": 1, "Bad": 9},
+            "skills_source": {"Figma": "project", "UI Design": "course", "Removed": "manual"},
+        },
+        headers=h,
+    )
+    assert updated.status_code == 200
+    body = updated.json()
+    assert body["skills_confidence"] == {"Figma": 3, "UI Design": 2}
+    assert body["skills_source"] == {"Figma": "project", "UI Design": "course"}
+    persisted = client.get("/profile", headers=h).json()
+    assert persisted["skills_confidence"] == {"Figma": 3, "UI Design": 2}
+
+
+def test_non_student_cannot_access_student_profile(client):
+    h = _login(client, JOBSEEKER)
+    assert client.get("/profile", headers=h).status_code == 403
+    assert client.put("/profile", json={}, headers=h).status_code == 403
+
+
+# ---- Application pack ------------------------------------------------------
+
+
+def test_student_application_pack_is_live_and_persists(client):
+    h = _login(client, STUDENT)
+    initial = client.get("/application-pack", headers=h)
+    assert initial.status_code == 200
+    assert initial.json()["statement"] == ""
+
+    updated = client.put(
+        "/application-pack",
+        json={
+            "statement": "  I build accessible digital products.  ",
+            "targets": [" Product design ", "Product design", "Research"],
+        },
+        headers=h,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["statement"] == "I build accessible digital products."
+    assert updated.json()["targets"] == ["Product design", "Research"]
+
+    persisted = client.get("/application-pack", headers=h)
+    assert persisted.json()["statement"] == "I build accessible digital products."
+    assert persisted.json()["targets"] == ["Product design", "Research"]
+
+
+def test_non_student_cannot_access_application_pack(client):
+    h = _login(client, JOBSEEKER)
+    assert client.get("/application-pack", headers=h).status_code == 403
+    assert client.put("/application-pack", json={}, headers=h).status_code == 403
+
+
+# ---- Resume -----------------------------------------------------------------
+
+
+def test_student_can_upload_replace_and_download_resume(client):
+    h = _login(client, STUDENT)
+    first = client.put(
+        "/resume",
+        files={"file": ("resume.pdf", b"first resume", "application/pdf")},
+        headers=h,
+    )
+    assert first.status_code == 200
+    assert first.json()["filename"] == "resume.pdf"
+    assert first.json()["size_bytes"] == len(b"first resume")
+
+    replacement = client.put(
+        "/resume",
+        files={
+            "file": (
+                "resume.docx",
+                b"replacement resume",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+        headers=h,
+    )
+    assert replacement.status_code == 200
+    assert replacement.json()["filename"] == "resume.docx"
+    downloaded = client.get("/resume/download", headers=h)
+    assert downloaded.status_code == 200
+    assert downloaded.content == b"replacement resume"
+    assert client.get("/resume", headers=h).json()["filename"] == "resume.docx"
+
+
+def test_resume_rejects_unsupported_files_and_non_students(client):
+    student = _login(client, STUDENT)
+    bad = client.put(
+        "/resume",
+        files={"file": ("resume.txt", b"not a resume", "text/plain")},
+        headers=student,
+    )
+    assert bad.status_code == 415
+    jobseeker = _login(client, JOBSEEKER)
+    assert client.get("/resume", headers=jobseeker).status_code == 403
+
+
+# ---- Student documents -----------------------------------------------------
+
+
+def test_student_can_upload_replace_and_list_documents(client):
+    h = _login(client, STUDENT)
+    empty = client.get("/documents", headers=h)
+    assert empty.status_code == 200
+    assert empty.json()["items"] == []
+
+    uploaded = client.put(
+        "/documents/transcript",
+        files={"file": ("transcript.pdf", b"transcript", "application/pdf")},
+        headers=h,
+    )
+    assert uploaded.status_code == 200
+    assert uploaded.json()["document_type"] == "transcript"
+    assert uploaded.json()["status"] == "pending"
+
+    replacement = client.put(
+        "/documents/transcript",
+        files={"file": ("new-transcript.pdf", b"new", "application/pdf")},
+        headers=h,
+    )
+    assert replacement.status_code == 200
+    assert replacement.json()["id"] == uploaded.json()["id"]
+    assert replacement.json()["filename"] == "new-transcript.pdf"
+    assert client.get("/documents", headers=h).json()["items"][0]["size_bytes"] == 3
+
+
+def test_documents_enforce_type_and_student_authorization(client):
+    student = _login(client, STUDENT)
+    unsupported = client.put(
+        "/documents/passport",
+        files={"file": ("passport.pdf", b"passport", "application/pdf")},
+        headers=student,
+    )
+    assert unsupported.status_code == 400
+    bad_file = client.put(
+        "/documents/portfolio",
+        files={"file": ("portfolio.txt", b"portfolio", "text/plain")},
+        headers=student,
+    )
+    assert bad_file.status_code == 415
+    assert client.get("/documents", headers=_login(client, JOBSEEKER)).status_code == 403
+
+
+def test_admin_document_preview_is_authorized_and_extracts_docx_text(client):
+    student = _login(client, STUDENT)
+    admin = _login(client, ADMIN)
+    pdf_content = b"%PDF-1.4 test document"
+    pdf = client.put(
+        "/documents/transcript",
+        files={"file": ("transcript.pdf", pdf_content, "application/pdf")},
+        headers=student,
+    )
+    assert pdf.status_code == 200
+    document_id = pdf.json()["id"]
+
+    assert client.get(
+        f"/admin/documents/{document_id}/file", headers=student
+    ).status_code == 403
+    preview = client.get(f"/admin/documents/{document_id}/file", headers=admin)
+    assert preview.status_code == 200
+    assert preview.content == pdf_content
+    assert preview.headers["content-disposition"].startswith("inline;")
+
+    from io import BytesIO
+    from zipfile import ZipFile
+
+    docx_file = BytesIO()
+    with ZipFile(docx_file, "w") as archive:
+        archive.writestr(
+            "word/document.xml",
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            "<w:body><w:p><w:r><w:t>Reviewed transcript</w:t></w:r></w:p></w:body>"
+            "</w:document>",
+        )
+    docx = client.put(
+        "/documents/student_id",
+        files={
+            "file": (
+                "student-id.docx",
+                docx_file.getvalue(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+        headers=student,
+    )
+    assert docx.status_code == 200
+    extracted = client.get(
+        f"/admin/documents/{docx.json()['id']}/file", headers=admin
+    )
+    assert extracted.status_code == 200
+    assert extracted.text == "Reviewed transcript"
+    assert extracted.headers["content-type"].startswith("text/plain")
+
+
+def test_verifying_testimonial_preserves_visibility_and_employer_only_sees_verified_docs(client, session):
+    from uuid import uuid4
+
+    from app.infrastructure.orm import ApplicationORM, PlacementORM
+
+    student = _login(client, STUDENT)
+    admin = _login(client, ADMIN)
+    employer = _login(client, EMPLOYER)
+    student_id = _user_id(client, STUDENT)
+    testimonial = client.put(
+        "/documents/testimonial",
+        data={"testimonial_text": "The program helped me grow."},
+        headers=student,
+    )
+    assert testimonial.status_code == 200
+    reviewed = client.patch(
+        f"/admin/documents/{testimonial.json()['id']}/verify",
+        json={"status": "verified"},
+        headers=admin,
+    )
+    assert reviewed.status_code == 200
+    assert reviewed.json()["is_public"] is True
+    public_testimonials = client.get("/admin/testimonials")
+    public_testimonial = next(
+        item for item in public_testimonials.json() if item["id"] == testimonial.json()["id"]
+    )
+    assert public_testimonial["author_role"] == "student"
+    assert public_testimonial["testimonial_text"] == "The program helped me grow."
+
+    pending = client.put(
+        "/documents/transcript",
+        files={"file": ("transcript.pdf", b"pending", "application/pdf")},
+        headers=student,
+    )
+    verified = client.put(
+        "/documents/student_id",
+        files={"file": ("student-id.pdf", b"verified", "application/pdf")},
+        headers=student,
+    )
+    assert pending.status_code == verified.status_code == 200
+    verification = client.patch(
+        f"/admin/documents/{verified.json()['id']}/verify",
+        json={"status": "verified"},
+        headers=admin,
+    )
+    assert verification.status_code == 200
+
+    placement = session.query(PlacementORM).filter_by(org_id="o4").first()
+    assert placement is not None
+    application_id = str(uuid4())
+    session.add(
+        ApplicationORM(
+            id=application_id,
+            user_id=student_id,
+            placement_id=placement.id,
+            created_at="2025-01-01T00:00:00+00:00",
+            updated_at="2025-01-01T00:00:00+00:00",
+        )
+    )
+    session.commit()
+    details = client.get(
+        f"/organization/applicants/{application_id}/detail",
+        headers=employer,
+    )
+    assert details.status_code == 200
+    visible_document_ids = {doc["id"] for doc in details.json()["documents"]}
+    assert visible_document_ids == {testimonial.json()["id"], verified.json()["id"]}
+    assert pending.json()["id"] not in visible_document_ids
+
+
+# ---- Subscription ----------------------------------------------------------
+
+
+def test_subscription_derives_org_from_the_employer_token(client):
+    h = _login(client, EMPLOYER)  # org o4
+    default = client.get("/billing/subscriptions/current", headers=h).json()
+    assert default["org_id"] == "o4"
+    assert default["plan"] == "Free"
+    assert default["is_premium"] is False
+
+    activated = client.post(
+        "/billing/subscriptions",
+        json={
+            "plan": "Pro",
+            "billing_cycle": "monthly",
+            "payment_gateway": "stripe",
+            "payment_method_id": _sandbox_payment_method(client, h),
+            "terms_accepted": True,
+        },
+        headers=h,
+    )
+    assert activated.status_code == 200, activated.text
+    activated = activated.json()
+    assert activated["plan"] == "Pro"
+    assert activated["is_premium"] is True
+    assert activated["seats"] == 1
+    assert activated["since"]
+
+    # persists across reads (keyed by the token's org, no org_id sent)
+    assert client.get("/billing/subscriptions/current", headers=h).json()["plan"] == "Pro"
+
+    cancelled = client.post("/billing/subscriptions/current/cancel", json={}, headers=h).json()
+    assert cancelled["plan"] == "Pro"
+    assert cancelled["is_premium"] is True
+    assert cancelled["cancel_at_period_end"] is True
+
+
+def test_student_cannot_access_subscription(client):
+    h = _login(client, STUDENT)
+    assert client.get("/billing/subscriptions/current", headers=h).status_code == 403
+
+
+def test_admin_may_target_an_org_explicitly(client):
+    h = _login(client, ADMIN)
+    resp = client.get("/billing/subscriptions/current?org_id=o5", headers=h)
+    assert resp.status_code == 200
+    assert resp.json()["org_id"] == "o5"

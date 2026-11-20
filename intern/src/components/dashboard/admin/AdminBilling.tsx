@@ -1,0 +1,373 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { useApp } from "../../../context/AppContext";
+import type { InvoiceResponse, TransactionResponse } from "../../../lib/api";
+import { fetchAdminInvoices, fetchAdminRevenue, fetchAdminTransactions } from "../../../lib/api";
+import { Icon } from "../../icons/Icons";
+import { BillingStatusBanner } from "../common/BillingStatusBanner";
+import billingStyles from "../common/Billing.module.css";
+
+const MOCK_INVOICES: InvoiceResponse[] = [
+  { id: "inv_1", org_id: "org_1", subscription_id: "sub_1", amount_cents: 3000, currency: "USD", status: "paid", invoice_number: "INV-2026-001", description: "Pro Plan - Monthly", line_items: [{ description: "Pro Plan - Monthly", quantity: 1, unit_amount_cents: 3000 }], metadata: {}, due_date: "2026-01-15", paid_at: "2026-01-10", payment_gateway: "stripe", gateway_invoice_id: "inv_stripe_1", gateway_payment_intent_id: "pi_1", created_at: "2026-01-01", updated_at: "2026-01-10" },
+  { id: "inv_2", org_id: "org_2", subscription_id: "sub_2", amount_cents: 30000, currency: "USD", status: "paid", invoice_number: "INV-2026-002", description: "Pro Plan - Annual", line_items: [{ description: "Pro Plan - Annual", quantity: 1, unit_amount_cents: 30000 }], metadata: {}, due_date: "2026-02-01", paid_at: "2026-01-28", payment_gateway: "paypal", gateway_invoice_id: "inv_paypal_1", gateway_payment_intent_id: "pi_2", created_at: "2026-01-15", updated_at: "2026-01-28" },
+  { id: "inv_3", org_id: "org_3", subscription_id: "sub_3", amount_cents: 3000, currency: "USD", status: "open", invoice_number: "INV-2026-003", description: "Pro Plan - Monthly", line_items: [{ description: "Pro Plan - Monthly", quantity: 1, unit_amount_cents: 3000 }], metadata: {}, due_date: "2026-02-15", paid_at: null, payment_gateway: "stripe", gateway_invoice_id: "inv_stripe_3", gateway_payment_intent_id: null, created_at: "2026-02-01", updated_at: "2026-02-01" },
+  { id: "inv_4", org_id: "org_4", subscription_id: "sub_4", amount_cents: 3000, currency: "USD", status: "open", invoice_number: "INV-2026-004", description: "Pro Plan - Monthly", line_items: [{ description: "Pro Plan - Monthly", quantity: 1, unit_amount_cents: 3000 }], metadata: {}, due_date: "2026-01-20", paid_at: null, payment_gateway: "flutterwave", gateway_invoice_id: "inv_fw_1", gateway_payment_intent_id: null, created_at: "2026-01-10", updated_at: "2026-01-10" },
+];
+
+const MOCK_TRANSACTIONS: TransactionResponse[] = [
+  { id: "txn_1", org_id: "org_1", invoice_id: "inv_1", subscription_id: "sub_1", amount_cents: 3000, currency: "USD", type: "payment", status: "succeeded", payment_gateway: "stripe", gateway_transaction_id: "pi_1", gateway_response: {}, description: "Invoice INV-2026-001 - Pro plan", metadata: {}, idempotency_key: "inv_1_pay", created_at: "2026-01-10", processed_at: "2026-01-10" },
+  { id: "txn_2", org_id: "org_2", invoice_id: "inv_2", subscription_id: "sub_2", amount_cents: 30000, currency: "USD", type: "payment", status: "succeeded", payment_gateway: "paypal", gateway_transaction_id: "pi_2", gateway_response: {}, description: "Invoice INV-2026-002 - Pro Annual", metadata: {}, idempotency_key: "inv_2_pay", created_at: "2026-01-28", processed_at: "2026-01-28" },
+  { id: "txn_3", org_id: "org_3", invoice_id: null, subscription_id: null, amount_cents: 1500, currency: "USD", type: "refund", status: "succeeded", payment_gateway: "stripe", gateway_transaction_id: "re_1", gateway_response: {}, description: "Partial refund", metadata: {}, idempotency_key: "ref_1", created_at: "2026-01-20", processed_at: "2026-01-20" },
+  { id: "txn_4", org_id: "org_4", invoice_id: null, subscription_id: null, amount_cents: 500, currency: "USD", type: "fee", status: "succeeded", payment_gateway: "flutterwave", gateway_transaction_id: "fee_1", gateway_response: {}, description: "Gateway fee", metadata: {}, idempotency_key: "fee_1", created_at: "2026-02-01", processed_at: "2026-02-01" },
+];
+
+const MOCK_REVENUE = {
+  total_revenue_cents: 34500,
+  total_revenue_usd: 345.00,
+  period: { start: "2026-01-01", end: "2026-02-01" },
+  by_gateway: [
+    { gateway: "stripe", count: 2, revenue_cents: 6000, revenue_usd: 60.00 },
+    { gateway: "paypal", count: 1, revenue_cents: 30000, revenue_usd: 300.00 },
+    { gateway: "flutterwave", count: 1, revenue_cents: 500, revenue_usd: 5.00 },
+  ],
+  by_plan: [],
+};
+
+function formatCents(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+function formatDate(iso: string | null) {
+  return iso ? new Date(iso).toLocaleDateString() : "—";
+}
+
+function MetricCard({ label, value, icon, color }: { label: string; value: string | number; icon: string; color: string }) {
+  return (
+    <div style={{ padding: "12px 14px", borderRight: "1px solid var(--rule)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <span style={{ fontSize: "18px" }}>{icon}</span>
+        <div style={{ fontSize: "10px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 600, fontFamily: "var(--mono)" }}>{label}</div>
+      </div>
+      <div style={{ fontSize: "20px", fontWeight: 700, color, fontFamily: "var(--sans)" }}>{value}</div>
+    </div>
+  );
+}
+
+export function AdminBilling() {
+  const { isApiEnabled, toast, openModal } = useApp();
+  const [invoices, setInvoices] = useState<InvoiceResponse[]>([]);
+  const [transactions, setTransactions] = useState<TransactionResponse[]>([]);
+  const [revenue, setRevenue] = useState<{
+    total_revenue_cents: number;
+    total_revenue_usd: number;
+    by_gateway: Array<{ gateway: string; count: number; revenue_cents: number; revenue_usd: number }>;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isApiEnabled) {
+      setInvoices(MOCK_INVOICES);
+      setTransactions(MOCK_TRANSACTIONS);
+      setRevenue(MOCK_REVENUE);
+      setLoading(false);
+      return;
+    }
+    loadData();
+  }, [isApiEnabled]);
+
+  const loadData = async () => {
+    try {
+      const [inv, rev, txns] = await Promise.all([
+        fetchAdminInvoices(),
+        fetchAdminRevenue(),
+        fetchAdminTransactions(),
+      ]);
+      setInvoices(Array.isArray(inv) ? inv : []);
+      setTransactions(Array.isArray(txns) ? txns : []);
+      setRevenue({
+        total_revenue_cents: rev.total_revenue_cents,
+        total_revenue_usd: rev.total_revenue_usd,
+        by_gateway: rev.by_gateway,
+      });
+    } catch (e) {
+      toast("Failed to load billing data");
+      setInvoices([]);
+      setTransactions([]);
+    } finally { setLoading(false); }
+  };
+
+  const outstanding = Array.isArray(invoices)
+    ? invoices.filter(inv => inv.status === "open" && inv.due_date && new Date(inv.due_date) < new Date())
+    : [];
+  const totalOutstanding = outstanding.reduce((sum, inv) => sum + inv.amount_cents, 0);
+  const paidInvoices = Array.isArray(invoices) ? invoices.filter(i => i.status === "paid").length : 0;
+  const paidTxns = Array.isArray(transactions) ? transactions.filter(t => t.status === "succeeded").length : 0;
+  const overdue = outstanding.length > 0;
+
+  /**
+   * "View details" used to raise a toast, so the button promised a panel that
+   * never existed. Everything the modal shows is already on the invoice record
+   * the list holds, so this costs no extra request.
+   */
+  function showInvoice(inv: InvoiceResponse) {
+    const fields: Array<[string, string]> = [
+      ["Status", inv.status],
+      ["Billed to", inv.user_id ? `Student ${inv.user_id}` : inv.org_id || "—"],
+      ["Description", inv.description || "—"],
+      ["Issued", formatDate(inv.created_at)],
+      ["Due", formatDate(inv.due_date)],
+      ["Paid", formatDate(inv.paid_at)],
+      ["Gateway", inv.payment_gateway || "—"],
+      ["Gateway invoice", inv.gateway_invoice_id || "—"],
+      ["Payment intent", inv.gateway_payment_intent_id || "—"],
+      ["Invoice ID", inv.id],
+    ];
+    const lineItems = Array.isArray(inv.line_items) ? inv.line_items : [];
+
+    openModal(
+      inv.invoice_number,
+      <div style={{ display: "grid", gap: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", borderBottom: "1px solid var(--rule)", paddingBottom: "12px" }}>
+          <span className="lbl">Amount</span>
+          <b style={{ fontSize: "20px", letterSpacing: "-.02em" }}>{formatCents(inv.amount_cents)} {inv.currency}</b>
+        </div>
+
+        {lineItems.length > 0 && (
+          <div>
+            <span className="lbl">Line items</span>
+            <div style={{ display: "grid", gap: "6px", marginTop: "8px" }}>
+              {lineItems.map((item, index) => {
+                const description = typeof item.description === "string" ? item.description : "Item";
+                const quantity = typeof item.quantity === "number" ? item.quantity : 1;
+                const unit = typeof item.unit_amount_cents === "number" ? item.unit_amount_cents : 0;
+                return (
+                  <div key={index} style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "12px" }}>
+                    <span>{description} × {quantity}</span>
+                    <b>{formatCents(unit * quantity)}</b>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "grid", gap: "7px" }}>
+          {fields.map(([label, value]) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: "12px", fontSize: "12px" }}>
+              <span className="lbl">{label}</span>
+              <span style={{ textAlign: "right", wordBreak: "break-all" }}>{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>,
+      null
+    );
+  }
+
+  if (loading) {
+    return <div className="dpane-h" style={{ padding: "24px", textAlign: "center" }}><p style={{ fontWeight: 600, color: "var(--ink)" }}>Loading billing…</p></div>;
+  }
+
+  return (
+    <div className={billingStyles.page}>
+      <div className={`dpane-h ${billingStyles.header}`}>
+        <div>
+          <h2 className={billingStyles.title}>Billing</h2>
+          <p className={billingStyles.description}>Revenue overview, invoices, and transaction log</p>
+        </div>
+        <button type="button" className="btn btn-sm" onClick={loadData}>
+          <Icon name="arrow" size={12} /> Refresh
+        </button>
+      </div>
+
+      {/* Billing status banner */}
+      <BillingStatusBanner plan="All plans" status={overdue ? "open" : "active"} overdue={overdue} />
+
+      {/* Revenue overview KPI strip */}
+      <div className="kpis" style={{ marginBottom: "22px" }}>
+        <MetricCard label="Total revenue" value={revenue ? formatCents(revenue.total_revenue_cents) : "—"} icon="💰" color="var(--green)" />
+        <MetricCard label="Outstanding" value={formatCents(totalOutstanding)} icon="⚠️" color={overdue ? "var(--red)" : "var(--green)"} />
+        <MetricCard label="Open invoices" value={Array.isArray(invoices) ? invoices.filter(i => i.status === "open").length : 0} icon="📄" color="var(--blue)" />
+        <MetricCard label="Paid transactions" value={paidTxns} icon="✅" color="var(--green)" />
+      </div>
+
+      {/* Revenue by gateway */}
+      {revenue && revenue.by_gateway && revenue.by_gateway.length > 0 && (
+        <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
+          <div className="ph"><span className="lbl blue">Revenue by gateway</span></div>
+          <div className="pb" style={{ padding: "16px 20px 20px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+            {revenue.by_gateway.map((g) => (
+              <div key={g.gateway} style={{ padding: "16px", border: "1px solid var(--rule)", borderRadius: "var(--r-lg)", background: "var(--paper-2)" }}>
+                <div style={{ fontWeight: 700, fontSize: "13px", marginBottom: "6px", color: "var(--ink)", fontFamily: "var(--sans)" }}>{g.gateway}</div>
+                <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--ink)", fontFamily: "var(--sans)" }}>{formatCents(g.revenue_cents)}</div>
+                <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px", fontFamily: "var(--mono)" }}>{g.count} transactions</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Outstanding invoices */}
+      <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
+        <div className="ph"><span className="lbl blue">Outstanding invoices</span><span className={`tg ${overdue ? "red" : "green"}`} style={{ fontSize: "10px", fontWeight: 700 }}>{outstanding.length} overdue</span></div>
+        <div className="pb" style={{ padding: "16px 20px 20px" }}>
+          {outstanding.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "32px 20px", color: "var(--muted)" }}>
+              <div style={{ fontSize: "24px", marginBottom: "10px" }}>✅</div>
+              <p style={{ fontSize: "14px", margin: 0, fontWeight: 600, color: "var(--ink)" }}>No overdue invoices</p>
+              <p style={{ fontSize: "12px", marginTop: "4px", color: "var(--ink-2)", fontWeight: 500 }}>All payments current.</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto", borderRadius: "var(--r-md)", border: "1px solid var(--rule)" }}>
+              <table className="dtable">
+                <thead>
+                  <tr style={{ textAlign: "left", background: "var(--paper-2)", borderBottom: "1px solid var(--rule)" }}>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Invoice</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Organization</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Due date</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Days overdue</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Amount</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Gateway</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {outstanding.map((inv) => {
+                    const daysOverdue = inv.due_date ? Math.floor((Date.now() - new Date(inv.due_date).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                    return (
+                      <tr key={inv.id} style={{ borderBottom: "1px solid var(--rule)" }}>
+                        <td style={{ padding: "10px 12px", fontWeight: 500, color: "var(--ink)", fontSize: "12px" }}>{inv.invoice_number}</td>
+                        <td
+                          title={inv.user_id || undefined}
+                          style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}
+                        >
+                          {inv.user_id ? `Student · ${inv.user_id.slice(0, 8)}` : inv.org_id || "—"}
+                        </td>
+                        <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(inv.due_date)}</td>
+                        <td style={{ padding: "10px 12px", color: "var(--red)", fontWeight: 600, fontFamily: "var(--mono)", fontSize: "12px" }}>{daysOverdue}d</td>
+                        <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(inv.amount_cents)}</td>
+                        <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.payment_gateway || "—"}</td>
+                        <td style={{ padding: "10px 12px" }}><button className="btn btn-sm" onClick={() => showInvoice(inv)} style={{ padding: "5px 12px", fontWeight: 700, fontSize: "11.5px" }}>View details</button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* All invoices table */}
+      <div className="panel" style={{ marginBottom: "20px", overflow: "hidden" }}>
+        <div className="ph"><span className="lbl blue">All invoices</span><span className="lbl" style={{ fontSize: "12px" }}>{Array.isArray(invoices) ? invoices.length : 0} total</span></div>
+        <div className="pb" style={{ padding: "16px 20px 20px" }}>
+          {Array.isArray(invoices) && invoices.length > 0 ? (
+            <div style={{ overflowX: "auto", borderRadius: "var(--r-md)", border: "1px solid var(--rule)" }}>
+              <table className="dtable">
+                <thead>
+                  <tr style={{ textAlign: "left", background: "var(--paper-2)", borderBottom: "1px solid var(--rule)" }}>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Number</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Org</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Date</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Due</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Amount</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Status</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Gateway</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.slice(0, 100).map((inv) => (
+                    <tr key={inv.id} style={{ borderBottom: "1px solid var(--rule)" }}>
+                      <td style={{ padding: "10px 12px", fontWeight: 500, color: "var(--ink)", fontSize: "12px" }}>
+                        {/* Paid invoices had no way in; the number itself is now the control. */}
+                        <button
+                          type="button"
+                          onClick={() => showInvoice(inv)}
+                          style={{ background: "none", border: 0, padding: 0, font: "inherit", color: "var(--blue)", fontWeight: 600, cursor: "pointer", textAlign: "left" }}
+                        >
+                          {inv.invoice_number}
+                        </button>
+                      </td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.user_id ? "Student account" : inv.org_id || "—"}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(inv.created_at)}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(inv.due_date)}</td>
+                      <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(inv.amount_cents)}</td>
+                      <td style={{ padding: "10px 12px" }}><span className={`tg ${inv.status === "paid" ? "green" : inv.status === "open" ? "blue" : "red"}`}>{inv.status}</span></td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{inv.payment_gateway || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "32px 20px", color: "var(--muted)" }}>
+              <div style={{ fontSize: "24px", marginBottom: "10px" }}>📄</div>
+              <p style={{ fontSize: "14px", margin: 0, fontWeight: 600, color: "var(--ink)" }}>No invoices found</p>
+            </div>
+          )}
+          {Array.isArray(invoices) && invoices.length > 100 && (
+            <p className="lbl" style={{ marginTop: "16px", textAlign: "center" }}>Showing 100 of {invoices.length} invoices</p>
+          )}
+        </div>
+      </div>
+
+      {/* Transaction log */}
+      <div className="panel" style={{ overflow: "hidden" }}>
+        <div className="ph"><span className="lbl blue">Transaction log</span></div>
+        <div className="pb" style={{ padding: "16px 20px 20px" }}>
+          {Array.isArray(transactions) && transactions.length > 0 ? (
+            <div style={{ overflowX: "auto", borderRadius: "var(--r-md)", border: "1px solid var(--rule)" }}>
+              <table className="dtable">
+                <thead>
+                  <tr style={{ textAlign: "left", background: "var(--paper-2)", borderBottom: "1px solid var(--rule)" }}>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Date</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Org</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Amount</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Type</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Gateway</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Reference</th>
+                    <th style={{ padding: "7px 12px", fontFamily: "var(--mono)", fontSize: "8.5px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 500 }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.slice(0, 100).map((txn) => (
+                    <tr key={txn.id} style={{ borderBottom: "1px solid var(--rule)" }}>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{formatDate(txn.processed_at || txn.created_at)}</td>
+                      <td
+                        title={txn.user_id || undefined}
+                        style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}
+                      >
+                        {txn.user_id ? `Student · ${txn.user_id.slice(0, 8)}` : txn.org_id || "—"}
+                      </td>
+                      <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--ink)", fontSize: "12px" }}>{formatCents(txn.amount_cents)}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontWeight: 500, fontSize: "12px" }}>{txn.type}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}>{txn.payment_gateway}</td>
+                      <td
+                        title={txn.gateway_transaction_id || undefined}
+                        style={{ padding: "10px 12px", color: "var(--ink-2)", fontSize: "12px" }}
+                      >
+                        {txn.gateway_transaction_id?.slice(0, 12) || "—"}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}><span className={`tg ${txn.status === "succeeded" ? "blue" : ""}`} style={{ fontSize: "10px" }}>{txn.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "32px 20px", color: "var(--muted)" }}>
+              <div style={{ fontSize: "24px", marginBottom: "10px" }}>💳</div>
+              <p style={{ fontSize: "14px", margin: 0, fontWeight: 600, color: "var(--ink)" }}>No transactions recorded yet</p>
+            </div>
+          )}
+          {Array.isArray(transactions) && transactions.length > 100 && (
+            <p className="lbl" style={{ marginTop: "16px", textAlign: "center" }}>Showing 100 of {transactions.length} transactions</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default AdminBilling;

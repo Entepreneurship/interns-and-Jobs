@@ -1,0 +1,533 @@
+"use client";
+
+import React from "react";
+import { useApp } from "../../../context/AppContext";
+import {
+  ApiError,
+  fetchJobs,
+  applyToJob,
+  isApiEnabled,
+  JobApplicationInput,
+  fetchSavedJobs,
+  toggleSavedJob,
+} from "../../../lib/api";
+import { Job } from "../../../types";
+import { Icon } from "../../icons/Icons";
+import { DataState } from "../../../components/common/DataState";
+
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    Submitted: "blue",
+    "In Review": "amber",
+    Accepted: "green",
+    Rejected: "red",
+    Withdrawn: "ink",
+  };
+  const color = colors[status] || "ink";
+  const classMap: Record<string, string> = {
+    blue: "tg blue",
+    amber: "tg gold",
+    green: "tg green",
+    red: "tg red",
+    ink: "tg dark",
+  };
+  return <span className={classMap[color] || "tg"}>{status}</span>;
+}
+
+function FileUpload({ label, accept, onChange, maxSizeMB = 5 }: { label: string; accept: string; onChange: (file: File | null) => void; maxSizeMB?: number }) {
+  const [fileName, setFileName] = React.useState("");
+  const [error, setError] = React.useState("");
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > maxSizeMB * 1024 * 1024) {
+        setError(`File must be less than ${maxSizeMB}MB`);
+        setFileName("");
+        onChange(null);
+        return;
+      }
+      setFileName(file.name);
+      setError("");
+      onChange(file);
+    }
+  };
+
+  const clearFile = () => {
+    setFileName("");
+    onChange(null);
+  };
+
+  return (
+    <div className="field">
+      <label className="lbl">{label}</label>
+      <input
+        type="file"
+        accept={accept}
+        onChange={handleFileChange}
+        id={`file-${label.replace(/\s+/g, "-").toLowerCase()}`}
+        className="file-input"
+        style={{ display: "none" }}
+      />
+      <button
+        type="button"
+        className={`btn btn-sm ${fileName ? "btn-blue" : ""}`}
+        onClick={() => document.getElementById(`file-${label.replace(/\s+/g, "-").toLowerCase()}`)?.click()}
+      >
+        {fileName ? (
+          <>
+            <Icon name="doc" size={13} /> {fileName}
+          </>
+        ) : (
+          <>
+            <Icon name="upload" size={13} /> Choose file
+          </>
+        )}
+      </button>
+      {fileName && (
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost"
+          onClick={clearFile}
+          style={{ marginLeft: "8px" }}
+        >
+          <Icon name="trash" size={13} /> Remove
+        </button>
+      )}
+      {error && <span className="error" style={{ fontSize: "11px", marginTop: "4px", display: "block", color: "var(--red)" }}>{error}</span>}
+      <span className="hint" style={{ fontSize: "10.5px", color: "var(--muted)", marginTop: "4px", display: "block" }}>
+        PDF only, max {maxSizeMB}MB
+      </span>
+    </div>
+  );
+}
+
+function SectionTitle({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <fieldset style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", padding: "16px", marginTop: "16px" }}>
+      <legend style={{ fontWeight: 600, fontSize: "12px", marginBottom: "12px", padding: "0 8px", color: "var(--ink)" }}>{title}</legend>
+      <div style={{ display: "grid", gap: "12px" }}>{children}</div>
+    </fieldset>
+  );
+}
+
+function ReferenceFieldset({ index, form, handleChange }: { index: 1 | 2; form: JobApplicationInput; handleChange: (key: string, value: string) => void }) {
+  const ref = index === 1 ? "reference_1" : "reference_2";
+  return (
+    <fieldset style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", padding: "16px", background: "var(--white)" }}>
+      <legend style={{ fontWeight: 600, fontSize: "11px", marginBottom: "10px", padding: "0 8px" }}>Reference {index}</legend>
+      <div style={{ display: "grid", gap: "10px" }}>
+        <div className="field">
+          <label className="lbl">Full Name</label>
+          <input
+            type="text"
+            className="field-input"
+            placeholder="Full Name"
+            value={form[`${ref}_name` as keyof JobApplicationInput] as string}
+            onChange={(e) => handleChange(`${ref}_name`, e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label className="lbl">Email</label>
+          <input
+            type="email"
+            className="field-input"
+            placeholder="email@example.com"
+            value={form[`${ref}_email` as keyof JobApplicationInput] as string}
+            onChange={(e) => handleChange(`${ref}_email`, e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label className="lbl">Phone</label>
+          <input
+            type="tel"
+            className="field-input"
+            placeholder="+256 7XX XXX XXX"
+            value={form[`${ref}_phone` as keyof JobApplicationInput] as string}
+            onChange={(e) => handleChange(`${ref}_phone`, e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label className="lbl">Relationship</label>
+          <input
+            type="text"
+            className="field-input"
+            placeholder="e.g., Former Supervisor, Professor"
+            value={form[`${ref}_relationship` as keyof JobApplicationInput] as string}
+            onChange={(e) => handleChange(`${ref}_relationship`, e.target.value)}
+          />
+        </div>
+      </div>
+    </fieldset>
+  );
+}
+
+function SaveButton({ isSaved, onClick, disabled, title }: { isSaved: boolean; onClick: () => void; disabled?: boolean; title: string }) {
+  return (
+    <button
+      type="button"
+      className={`btn btn-sm ${isSaved ? "btn-blue" : "btn-ghost"}`}
+      onClick={onClick}
+      disabled={disabled}
+      style={{ minWidth: "44px", height: "40px", padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", transition: "all 0.15s" }}
+      title={title}
+    >
+      <Icon name={isSaved ? "check" : "plus"} size={15} />
+      <span style={{ fontSize: "12px", fontWeight: 500, display: "none" }}>{isSaved ? "Saved" : "Save"}</span>
+    </button>
+  );
+}
+
+export function JobSeekerRoles() {
+  const { session, toast } = useApp();
+  const [jobs, setJobs] = React.useState<Job[]>([]);
+  const [savedJobIds, setSavedJobIds] = React.useState<Set<string>>(new Set());
+  const [state, setState] = React.useState<"loading" | "ready" | "error">("loading");
+  const [error, setError] = React.useState("");
+  const [applyingTo, setApplyingTo] = React.useState<string | null>(null);
+  const [applying, setApplying] = React.useState(false);
+  const [form, setForm] = React.useState<JobApplicationInput>({
+    statement: "",
+    cover_letter: "",
+    cv_url: "",
+    github_url: "",
+    linkedin_url: "",
+    portfolio_url: "",
+    academic_papers: [],
+    reference_1_name: "",
+    reference_1_email: "",
+    reference_1_phone: "",
+    reference_1_relationship: "",
+    reference_2_name: "",
+    reference_2_email: "",
+    reference_2_phone: "",
+    reference_2_relationship: "",
+    document_ids: [],
+  });
+  const [cvFile, setCvFile] = React.useState<File | null>(null);
+
+  React.useEffect(() => {
+    if (!isApiEnabled || session?.role !== "jobseeker") {
+      setState("ready");
+      return;
+    }
+    Promise.all([fetchJobs(), fetchSavedJobs()])
+      .then(([items, saved]) => {
+        setJobs(items);
+        setSavedJobIds(new Set(saved));
+        setState("ready");
+      })
+      .catch((cause) => {
+        setError(cause instanceof ApiError ? cause.message : "Unable to load jobs");
+        setState("error");
+      });
+  }, [session]);
+
+  async function handleToggleSaved(jobId: string) {
+    try {
+      const isNowSaved = await toggleSavedJob(jobId);
+      setSavedJobIds((prev) => {
+        const next = new Set(prev);
+        if (isNowSaved) next.add(jobId);
+        else next.delete(jobId);
+        return next;
+      });
+      toast(isNowSaved ? "Job saved" : "Job removed from saved");
+    } catch {
+      toast("Failed to update saved jobs");
+    }
+  }
+
+  function openApply(jobId: string) {
+    setApplyingTo(jobId);
+    setForm({
+      statement: "",
+      cover_letter: "",
+      cv_url: "",
+      github_url: "",
+      linkedin_url: "",
+      portfolio_url: "",
+      academic_papers: [],
+      reference_1_name: "",
+      reference_1_email: "",
+      reference_1_phone: "",
+      reference_1_relationship: "",
+      reference_2_name: "",
+      reference_2_email: "",
+      reference_2_phone: "",
+      reference_2_relationship: "",
+      document_ids: [],
+    });
+    setCvFile(null);
+  }
+
+  async function submitApply() {
+    if (!applyingTo) return;
+    setApplying(true);
+    try {
+      const input: JobApplicationInput = {
+        ...form,
+        cv_url: form.cv_url,
+        academic_papers: form.academic_papers.filter(Boolean),
+        document_ids: form.document_ids.filter(Boolean),
+      };
+      await applyToJob(applyingTo, input);
+      toast("Application submitted successfully!");
+      setApplyingTo(null);
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : "Unable to submit application");
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  const handleChange = (key: string, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleArrayChange = (key: string, value: string[]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  return (
+    <>
+      <div className="dpane-h">
+        <div>
+          <h2>Graduate roles</h2>
+          <p>Beyond internships · verified employers only</p>
+        </div>
+      </div>
+      <div className="panel">
+        <div className="pb" style={{ padding: 0 }}>
+<table className="dtable">
+            <thead>
+              <tr>
+                <th>Role</th>
+                <th>Organisation</th>
+                <th className="hide-xs">Location</th>
+                <th>Pay</th>
+                <th>Closes</th>
+                <th style={{ width: "50px" }}>Save</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <DataState
+                state={state}
+                error={error}
+                items={jobs}
+                colSpan={7}
+                emptyMessage="No open jobs are available."
+                emptyIcon="brief"
+                loadingMessage="Loading jobs..."
+                errorMessage="Unable to load jobs"
+                children={(r: Job) => {
+                  const isSaved = savedJobIds.has(r.id);
+                  return (
+                    <tr key={r.id}>
+                      <td className="who" data-label="Role">
+                        <b>{r.title}</b>
+                        <span>{r.employmentType}</span>
+                      </td>
+                      <td data-label="Organisation">{r.orgName}</td>
+                      <td className="hide-xs" data-label="Location">{r.loc}</td>
+                      <td className="num" data-label="Pay">{r.salary}</td>
+                      <td className="num" data-label="Closes">{r.closesAt}</td>
+                      <td className="act" data-label="Save" style={{ textAlign: "center" }}>
+                        <SaveButton
+                          isSaved={isSaved}
+                          onClick={() => handleToggleSaved(r.id)}
+                          disabled={applying}
+                          title={isSaved ? "Remove from saved" : "Save job"}
+                        />
+                      </td>
+                      <td className="act" data-label="Actions">
+                        {r.status === "Open" ? (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-blue"
+                            disabled={applying}
+                            onClick={() => openApply(r.id)}
+                          >
+                            <Icon name="send" size={13} /> Apply
+                          </button>
+                        ) : (
+                          <StatusBadge status={r.status} />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                }}
+              />
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {applyingTo && (
+        <div className="panel" style={{ marginTop: "16px" }}>
+          <div className="ph">
+            <span className="lbl">Application Form</span>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => setApplyingTo(null)}
+              style={{ padding: 0 }}
+            >
+              <Icon name="x" size={15} />
+            </button>
+          </div>
+          <div className="pb" style={{ display: "grid", gap: "20px", padding: "20px" }}>
+            <div className="field">
+              <label className="lbl">Personal Statement <span style={{ color: "var(--red)" }}>*</span></label>
+              <textarea
+                className="field-input"
+                rows={5}
+                value={form.statement}
+                onChange={(e) => handleChange("statement", e.target.value)}
+                placeholder="Tell us why you're a great fit for this role... Highlight your relevant experience, skills, and motivation."
+                required
+                style={{ minHeight: "120px" }}
+              />
+            </div>
+
+            <div className="field">
+              <label className="lbl">Cover Letter</label>
+              <textarea
+                className="field-input"
+                rows={4}
+                value={form.cover_letter}
+                onChange={(e) => handleChange("cover_letter", e.target.value)}
+                placeholder="Optional: Paste or write your cover letter here..."
+                style={{ minHeight: "100px" }}
+              />
+            </div>
+
+            <FileUpload
+              label="CV / Resume (PDF, max 5MB)"
+              accept=".pdf"
+              onChange={(file) => {
+                setCvFile(file);
+                if (file) {
+                  setForm((prev) => ({ ...prev, cv_url: file.name }));
+                } else {
+                  setForm((prev) => ({ ...prev, cv_url: "" }));
+                }
+              }}
+            />
+
+            <div style={{ display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+              <div className="field">
+                <label className="lbl">GitHub Profile</label>
+                <input
+                  type="url"
+                  className="field-input"
+                  value={form.github_url}
+                  onChange={(e) => handleChange("github_url", e.target.value)}
+                  placeholder="https://github.com/username"
+                />
+              </div>
+              <div className="field">
+                <label className="lbl">LinkedIn Profile</label>
+                <input
+                  type="url"
+                  className="field-input"
+                  value={form.linkedin_url}
+                  onChange={(e) => handleChange("linkedin_url", e.target.value)}
+                  placeholder="https://linkedin.com/in/username"
+                />
+              </div>
+              <div className="field">
+                <label className="lbl">Portfolio / Personal Website</label>
+                <input
+                  type="url"
+                  className="field-input"
+                  value={form.portfolio_url}
+                  onChange={(e) => handleChange("portfolio_url", e.target.value)}
+                  placeholder="https://your-portfolio.com"
+                />
+              </div>
+            </div>
+
+            <div className="field">
+              <label className="lbl">Academic Papers / Publications (one URL per line)</label>
+              <textarea
+                className="field-input"
+                rows={3}
+                value={form.academic_papers.join("\n")}
+                onChange={(e) => handleArrayChange("academic_papers", e.target.value.split("\n").map(s => s.trim()).filter(Boolean))}
+                placeholder="https://example.com/paper1.pdf&#10;https://example.com/paper2.pdf"
+                style={{ minHeight: "80px" }}
+              />
+            </div>
+
+            <SectionTitle title="Professional References">
+              <ReferenceFieldset index={1} form={form} handleChange={handleChange} />
+              <ReferenceFieldset index={2} form={form} handleChange={handleChange} />
+            </SectionTitle>
+
+            <SectionTitle title="Additional Documents">
+              <p style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "12px" }}>
+                Upload reference letters, transcripts, certificates, etc. (PDF, max 5MB each)
+              </p>
+              <FileUpload
+                label="Reference Letter 1"
+                accept=".pdf"
+                onChange={(file) => {
+                  if (file) {
+                    setForm((prev) => ({ ...prev, document_ids: [...prev.document_ids, file.name] }));
+                  }
+                }}
+              />
+              <FileUpload
+                label="Reference Letter 2"
+                accept=".pdf"
+                onChange={(file) => {
+                  if (file) {
+                    setForm((prev) => ({ ...prev, document_ids: [...prev.document_ids, file.name] }));
+                  }
+                }}
+              />
+              <FileUpload
+                label="Transcript / Certificate"
+                accept=".pdf"
+                onChange={(file) => {
+                  if (file) {
+                    setForm((prev) => ({ ...prev, document_ids: [...prev.document_ids, file.name] }));
+                  }
+                }}
+              />
+            </SectionTitle>
+
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", borderTop: "1px solid var(--rule)", paddingTop: "16px", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => setApplyingTo(null)}
+              >
+                <Icon name="x" size={13} /> Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-blue"
+                disabled={applying || !form.statement.trim()}
+                onClick={submitApply}
+              >
+                {applying ? (
+                  <>
+                    <div className="spinner" style={{ width: "13px", height: "13px", border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: "8px" }} />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="send" size={13} /> Submit Application
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

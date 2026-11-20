@@ -1,0 +1,402 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { useApp } from "../../context/AppContext";
+import { NAV, ROLE_META } from "../../data";
+import { DashboardView, UserRole } from "../../types";
+import { Icon } from "../icons/Icons";
+import { listThreads } from "../../lib/chat";
+import { MessagesView } from "./common/MessagesView";
+
+// Views
+import { AdminOverview } from "./admin/AdminOverview";
+import { AdminPlacements } from "./admin/AdminPlacements";
+import { AdminApplications } from "./admin/AdminApplications";
+import { AdminRequirements } from "./admin/AdminRequirements";
+import { AdminLearning } from "./admin/AdminLearning";
+import { AdminStudents } from "./admin/AdminStudents";
+import { AdminDocuments } from "./admin/AdminDocuments";
+import { AdminTestimonial } from "./admin/AdminTestimonial";
+import { OrganizationManagement } from "./admin/OrganizationManagement";
+import { UserManagement } from "./admin/UserManagement";
+import { AdminActionLogs } from "./admin/AdminActionLogs";
+import { AdminReports } from "./admin/AdminReports";
+import { AdminAnalytics } from "./admin/AdminAnalytics";
+
+import { StudentOverview } from "./student/StudentOverview";
+import { StudentApplications } from "./student/StudentApplications";
+import { SkillProfile } from "./student/SkillProfile";
+import { StudentLearning } from "./student/StudentLearning";
+import { StudentPlacements } from "./student/StudentPlacements";
+import { StudentDocs } from "./student/StudentDocs";
+import { VerificationStatus } from "./student/VerificationStatus";
+import { StudentPack } from "./student/StudentPack";
+import { StudentTestimonial } from "./student/StudentTestimonial";
+
+import { EmployerOverview } from "./employer/EmployerOverview";
+import { EmployerPlacements } from "./employer/EmployerPlacements";
+import { EmployerApplicants } from "./employer/EmployerApplicants";
+import { EmployerJobs } from "./employer/EmployerJobs";
+import { EmployerTestimonial } from "./employer/EmployerTestimonial";
+import { EmployerProfile } from "./employer/EmployerProfile";
+import { EmployerTalentSearch } from "./employer/EmployerTalentSearch";
+import { EmployerTeam } from "./employer/EmployerTeam";
+import { EmployerAnalytics } from "./employer/EmployerAnalytics";
+import { EmployerBilling } from "./employer/EmployerBilling";
+
+import { EmployeeTestimonial } from "./employee/EmployeeTestimonial";
+
+import { JobSeekerOverview } from "./jobseeker/JobSeekerOverview";
+import { JobSeekerRoles } from "./jobseeker/JobSeekerRoles";
+import { JobSeekerApps } from "./jobseeker/JobSeekerApps";
+
+// Billing dashboards
+import { StudentBilling } from "./student/StudentBilling";
+import { AdminBilling } from "./admin/AdminBilling";
+
+export function DashboardShell() {
+  const {
+    role,
+    dash,
+    dashGo,
+    go,
+    session,
+    signOut,
+    isSideDrawerOpen,
+    openSide,
+    closeSide,
+    toast,
+  } = useApp();
+
+  const meta = ROLE_META[role] || ROLE_META.student;
+  const navItems = NAV[role] || NAV.student;
+
+  // Unread badge for the Messages item. Counted from the inbox endpoint rather
+  // than pushed, so it stays right after a reload or a second device.
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      listThreads()
+        .then((list) => {
+          if (alive) setUnread(list.reduce((sum, t) => sum + (t.unread_count || 0), 0));
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const timer = window.setInterval(load, 60000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [dash]);
+
+  // Identity shown in the sidebar / "me" chip comes from the signed-in account,
+  // not the hardcoded ROLE_META name. Falls back only if somehow unauthed.
+  const initials = (n: string) => {
+    const parts = n.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "··";
+    return parts.length === 1
+      ? parts[0].slice(0, 2).toUpperCase()
+      : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+  const displayName = session ? session.name : meta[1];
+  const displayMono = session ? initials(session.name) : meta[2];
+
+  const titles: Record<string, string> = {
+    overview: "Overview",
+    skills: "Skills profile",
+    placements: "Placements",
+    applications: "Applications",
+    requirements: "Requirements",
+    learning: "Learning resources",
+    students: "Students",
+    documents: "Documents",
+    verification: "Verification status",
+    testimonial: "Testimonial",
+    pack: "Application pack",
+    roles: "Graduate roles",
+    apps: "Applications",
+    applicants: "Applicants",
+    organizations: "Organizations",
+    users: "Users",
+    "action-logs": "Action Logs",
+    reports: "Reports",
+    analytics: "Hiring Analytics",
+    profile: "Organization Profile",
+    "talent-search": "Talent Search",
+    team: "Team Members",
+    messages: "Messages",
+    billing: "Billing",
+  };
+
+  const currentTitle = titles[dash] || "Overview";
+  const crumb = `/ ${role === "admin" ? "placement office" : role}`;
+
+  const renderActiveView = () => {
+    // Messaging is a workspace of its own, not a per-role screen, so it answers
+    // before the role switch below.
+    if (dash === "messages") return <MessagesView />;
+
+    if (role === "admin") {
+      switch (dash) {
+        case "overview":
+          return <AdminOverview />;
+        case "placements":
+          return <AdminPlacements />;
+        case "applications":
+          return <AdminApplications />;
+        case "requirements":
+          return <AdminRequirements />;
+        case "learning":
+          return <AdminLearning />;
+        case "students":
+          return <AdminStudents />;
+        case "documents":
+          return <AdminDocuments />;
+        case "testimonial":
+          return <AdminTestimonial />;
+        case "organizations":
+          return <OrganizationManagement />;
+        case "users":
+          return <UserManagement />;
+        case "action-logs":
+          return <AdminActionLogs />;
+        case "reports":
+          return <AdminReports />;
+        case "analytics":
+          return <AdminAnalytics />;
+        case "billing":
+          return <AdminBilling />;
+        default:
+          return <AdminOverview />;
+      }
+    } else if (role === "student") {
+      switch (dash) {
+        case "overview":
+          return <StudentOverview />;
+        case "skills":
+          return <SkillProfile />;
+        case "learning":
+          return <StudentLearning />;
+        case "placements":
+          return <StudentPlacements />;
+        case "applications":
+          return <StudentApplications />;
+        case "documents":
+          return <StudentDocs />;
+        case "verification":
+          return <VerificationStatus />;
+        case "pack":
+          return <StudentPack />;
+        case "testimonial":
+          return <StudentTestimonial />;
+        case "billing":
+          return <StudentBilling />;
+        default:
+          return <StudentOverview />;
+      }
+    } else if (role === "employer") {
+      switch (dash) {
+        case "overview":
+          return <EmployerOverview />;
+        case "placements":
+          return <EmployerPlacements />;
+        case "applicants":
+          return <EmployerApplicants />;
+        case "jobs":
+          return <EmployerJobs />;
+        case "talent-search":
+          return <EmployerTalentSearch />;
+        case "profile":
+          return <EmployerProfile />;
+        case "team":
+          return <EmployerTeam />;
+        case "analytics":
+          return <EmployerAnalytics />;
+        case "testimonial":
+          return <EmployerTestimonial />;
+        case "billing":
+          return <EmployerBilling />;
+        default:
+          return <EmployerOverview />;
+      }
+    } else if (role === "employee") {
+      switch (dash) {
+        case "overview":
+          return <EmployeeTestimonial />;
+        case "testimonial":
+          return <EmployeeTestimonial />;
+        default:
+          return <EmployeeTestimonial />;
+      }
+    } else {
+      switch (dash) {
+        case "overview":
+          return <JobSeekerOverview />;
+        case "roles":
+          return <JobSeekerRoles />;
+        case "apps":
+          return <JobSeekerApps />;
+        default:
+          return <JobSeekerOverview />;
+      }
+    }
+  };
+
+  const sidebarContent = (
+    <>
+      <div className="logo" style={{ padding: "0 18px 16px" }}>
+        <i></i>
+        <span>
+          <b>BrighterWorks</b>
+          <small>PLACEMENT SYSTEM</small>
+        </span>
+      </div>
+      <div className="rolechip">
+        <span className="rc">{displayMono}</span>
+        <div>
+          <b>{displayName}</b>
+          <span>{meta[0]}</span>
+        </div>
+      </div>
+      <nav className="snav">
+        {navItems.map(([id, label, n]) => (
+          <a
+            key={id}
+            className={`sitem ${dash === id ? "on" : ""}`}
+            href={`#dashboard-${role}-${id}`}
+            onClick={(e) => {
+              e.preventDefault();
+              dashGo(id as DashboardView);
+            }}
+          >
+            <span className="n">{n}</span>
+            <span>{label}</span>
+            {id === "messages" && unread > 0 && (
+              <span className="snav-badge" aria-label={`${unread} unread messages`}>
+                {unread > 99 ? "99+" : unread}
+              </span>
+            )}
+          </a>
+        ))}
+      </nav>
+
+      <div className="sfoot">
+        <a
+          className="slink"
+          href="#home"
+          onClick={(e) => {
+            e.preventDefault();
+            go("home");
+          }}
+        >
+          <Icon name="home" size={13} /> Back to site
+        </a>
+        <a
+          className="slink"
+          href="#plans"
+          onClick={(e) => {
+            e.preventDefault();
+            go("plans");
+          }}
+        >
+          <Icon name="brief" size={13} /> Plans and billing
+        </a>
+        <a
+          className="slink"
+          href="#signin"
+          onClick={(e) => {
+            e.preventDefault();
+            closeSide();
+            signOut();
+          }}
+        >
+          <Icon name="user" size={13} /> Sign out
+        </a>
+      </div>
+    </>
+  );
+
+  const avBg =
+    role === "admin"
+      ? "var(--red)"
+      : role === "employer"
+      ? "var(--ink)"
+      : "var(--blue)";
+
+  return (
+    <div id="app" className="on">
+      <aside className="side" id="side">
+        {sidebarContent}
+      </aside>
+
+      <div className="main">
+        <div className="dash-top">
+          <div className="left">
+            <button
+              type="button"
+              className="iconbtn side-toggle"
+              onClick={openSide}
+              aria-label="Menu"
+            >
+              <Icon name="menu" size={15} />
+            </button>
+            <a
+              href="#home"
+              onClick={(e) => {
+                e.preventDefault();
+                go("home");
+              }}
+              className="iconbtn"
+              title="Back to site"
+            >
+              <Icon name="home" size={14} />
+            </a>
+            <div className="sep"></div>
+            <h1 id="dashTitle">{currentTitle}</h1>
+            <span className="crumbs" id="dashCrumb">
+              {crumb}
+            </span>
+          </div>
+
+          <div className="dash-actions">
+            <button
+              type="button"
+              className="iconbtn"
+              onClick={() => toast("No new notifications")}
+              aria-label="Notifications"
+            >
+              <Icon name="bell" size={14} />
+            </button>
+            <div className="me">
+              <span className="av" id="meAv" style={{ background: avBg }}>
+                {displayMono}
+              </span>
+              <div>
+                <b id="meName">{displayName}</b>
+                <span id="meRole">{meta[0]}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="dpane" id="dashMain">
+          {renderActiveView()}
+        </div>
+      </div>
+
+      <div
+        className={`sidedrawer ${isSideDrawerOpen ? "on" : ""}`}
+        id="sideDrawer"
+      >
+        {sidebarContent}
+      </div>
+      <div
+        className={`drawer-veil ${isSideDrawerOpen ? "on" : ""}`}
+        id="veil"
+        onClick={closeSide}
+      ></div>
+    </div>
+  );
+}

@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useApp } from "../../context/AppContext";
 import { Icon, IconName } from "../icons/Icons";
 import { voiceService } from "../../lib/voice";
+import { API_BASE } from "../../lib/api";
 
 const INTRO_MESSAGE = `Hi! I'm Brightworks Virtual Assistant — your career coach for BrighterWorks. I know your profile, all placements, and can help with eligibility, applications, skill gaps, deadlines, and more. What can I help you with today?`;
 
@@ -91,8 +92,6 @@ export function ChatDrawer() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "/api").replace(/\/+$/, "");
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

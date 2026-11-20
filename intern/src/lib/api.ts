@@ -11,10 +11,33 @@ import { Job, Org, Placement, ApplicationDto, JobApplicationDto, CompanyProfile,
 
 export type { LearningResource } from "../types";
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "/api").replace(
+const RAW_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(
   /\/+$/,
   ""
 );
+const IS_STATIC_EXPORT = process.env.NEXT_PUBLIC_IS_STATIC_EXPORT === "1";
+
+function resolveApiBase(): string {
+  if (IS_STATIC_EXPORT) {
+    return RAW_API_BASE;
+  }
+  if (
+    RAW_API_BASE.startsWith("http://") ||
+    RAW_API_BASE.startsWith("https://")
+  ) {
+    if (
+      typeof window !== "undefined" &&
+      window.location.origin &&
+      RAW_API_BASE.startsWith(window.location.origin)
+    ) {
+      return RAW_API_BASE;
+    }
+    return "/api";
+  }
+  return RAW_API_BASE || "/api";
+}
+
+export const API_BASE = resolveApiBase();
 
 export const isApiEnabled = API_BASE.length > 0;
 

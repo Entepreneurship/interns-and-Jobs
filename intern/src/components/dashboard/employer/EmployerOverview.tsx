@@ -8,11 +8,12 @@ import {
   fetchOrganizationInternships,
   fetchOrganizationApplicants,
   isApiEnabled,
+  toggleInternshipApplicationShortlist,
 } from "../../../lib/api";
 import { Placement, ApplicationDto } from "../../../types";
 
 export function EmployerOverview() {
-  const { session, dashGo, organizationPlacements } = useApp();
+  const { session, dashGo, go, showEmbed, toast } = useApp();
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [applicants, setApplicants] = useState<ApplicationDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,10 +143,24 @@ export function EmployerOverview() {
                     <td className="act">
                       <button
                         type="button"
-                        className="btn btn-sm"
-                        onClick={() => console.log("Shortlist", app.id)}
+                        className={`btn btn-sm ${app.shortlisted ? "btn-blue" : ""}`}
+                        onClick={async () => {
+                          try {
+                            await toggleInternshipApplicationShortlist(app.id);
+                            setApplicants((prev) =>
+                              prev.map((item) =>
+                                item.id === app.id
+                                  ? { ...item, shortlisted: !item.shortlisted }
+                                  : item
+                              )
+                            );
+                            toast(app.shortlisted ? "Removed from shortlist" : "Applicant shortlisted");
+                          } catch {
+                            toast("Could not update shortlist");
+                          }
+                        }}
                       >
-                        Shortlist
+                        {app.shortlisted ? "Shortlisted" : "Shortlist"}
                       </button>
                     </td>
                   </tr>
@@ -223,14 +238,14 @@ export function EmployerOverview() {
               <button
                 type="button"
                 className="btn btn-sm btn-blue"
-                onClick={() => console.log("Compare plans")}
+                onClick={() => go("plans")}
               >
                 Compare plans
               </button>
               <button
                 type="button"
                 className="btn btn-sm"
-                onClick={() => console.log("Invoice request")}
+                onClick={() => dashGo("billing")}
               >
                 Request invoice
               </button>
@@ -269,7 +284,7 @@ export function EmployerOverview() {
               <button
                 type="button"
                 className="btn btn-sm"
-                onClick={() => console.log("Unlock")}
+                onClick={() => dashGo("talent-search")}
               >
                 Unlock
               </button>
@@ -300,7 +315,7 @@ export function EmployerOverview() {
               <button
                 type="button"
                 className="btn btn-sm"
-                onClick={() => console.log("Get embed code")}
+                onClick={showEmbed}
               >
                 Get code
               </button>

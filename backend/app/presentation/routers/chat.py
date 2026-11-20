@@ -290,21 +290,49 @@ class SettingsUpdate(BaseModel):
 def create_group(
     payload: GroupCreate,
     service: ChatService = Depends(get_chat_service),
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    from app.infrastructure.orm import UserORM
+
     try:
         group_type = GroupType(payload.type)
     except ValueError:
         raise HTTPException(400, "Invalid group type")
-    
+
+    name = (payload.name or "").strip()
+    if not name:
+        raise HTTPException(422, "Group name cannot be empty")
+    if len(name) > 120:
+        raise HTTPException(422, "Group name is too long")
+
+    if group_type == GroupType.ADMIN and current_user.role != "admin":
+        raise HTTPException(403, "Only admins can create placement office channels")
+
+    raw_member_ids = [uid for uid in dict.fromkeys(payload.member_ids) if uid and uid != current_user.id]
+    valid_member_ids: list[str] = []
+    if raw_member_ids:
+        active_rows = (
+            session.query(UserORM)
+            .filter(UserORM.id.in_(raw_member_ids))
+            .filter(UserORM.is_active == True)  # noqa: E712
+            .filter(UserORM.deleted == False)  # noqa: E712
+            .all()
+        )
+        found_ids = {r.id for r in active_rows}
+        missing = [uid for uid in raw_member_ids if uid not in found_ids]
+        if missing:
+            raise HTTPException(400, "One or more selected members are invalid or inactive")
+        valid_member_ids = raw_member_ids
+
     group = service.create_group(
-        name=payload.name,
+        name=name,
         group_type=group_type,
         created_by=current_user.id,
-        description=payload.description,
+        description=(payload.description or "").strip(),
         placement_id=payload.placement_id,
         org_id=payload.org_id,
-        member_ids=payload.member_ids,
+        member_ids=valid_member_ids,
     )
     return {"group": group}
 
@@ -367,16 +395,21 @@ def update_group(
     current_user: User = Depends(get_current_user),
 ):
     group = service.get_group(group_id)
-    if not group:
+    if not group or not group.is_active:
         raise HTTPException(404, "Group not found")
     
-    # Only owner/admin can update
+    # Only group owner/admin or platform admin can update
     participants = service.get_participants(group_id)
     me = next((p for p in participants if p.user_id == current_user.id), None)
-    if not me or me.role not in ("owner", "admin") and current_user.role != "admin":
+    if (not me or me.role not in ("owner", "admin")) and current_user.role != "admin":
         raise HTTPException(403, "Not authorized")
     
     update_data = payload.model_dump(exclude_unset=True)
+    if "name" in update_data:
+        cleaned_name = (update_data["name"] or "").strip()
+        if not cleaned_name:
+            raise HTTPException(422, "Group name cannot be empty")
+        update_data["name"] = cleaned_name
     updated = service._groups.update(group_id, **update_data)
     return {"group": updated}
 
@@ -388,13 +421,13 @@ def delete_group(
     current_user: User = Depends(get_current_user),
 ):
     group = service.get_group(group_id)
-    if not group:
+    if not group or not group.is_active:
         raise HTTPException(404, "Group not found")
     
-    # Only owner can delete
+    # Only group owner or platform admin can delete
     participants = service.get_participants(group_id)
     me = next((p for p in participants if p.user_id == current_user.id), None)
-    if not me or me.role != "owner":
+    if (not me or me.role != "owner") and current_user.role != "admin":
         raise HTTPException(403, "Only owner can delete group")
     
     service._groups.delete(group_id)
@@ -411,10 +444,14 @@ def get_members(
     current_user: User = Depends(get_current_user),
 ):
     group = service.get_group(group_id)
-    if not group:
+    if not group or not group.is_active:
         raise HTTPException(404, "Group not found")
 
     participants = service.get_participants(group_id)
+    is_member = any(p.user_id == current_user.id for p in participants)
+    if not is_member and current_user.role != "admin":
+        raise HTTPException(403, "Not a member of this group")
+
     names = _names(session, {p.user_id for p in participants})
     return {
         "participants": [
@@ -438,20 +475,40 @@ def add_member(
     group_id: str,
     payload: MemberAdd,
     service: ChatService = Depends(get_chat_service),
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    from app.infrastructure.orm import UserORM
+
     group = service.get_group(group_id)
-    if not group:
+    if not group or not group.is_active:
         raise HTTPException(404, "Group not found")
     
-    # Check if user can add members
     participants = service.get_participants(group_id)
     me = next((p for p in participants if p.user_id == current_user.id), None)
-    if not me or me.role not in ("owner", "admin") and current_user.role != "admin":
+    if (not me or me.role not in ("owner", "admin")) and current_user.role != "admin":
         raise HTTPException(403, "Not authorized to add members")
-    
-    # Admin auto-added to all groups
-    if current_user.role == "admin" and payload.user_id != current_user.id:
+
+    if payload.role not in ("member", "admin"):
+        raise HTTPException(400, "Invalid member role")
+    if payload.role == "admin" and not ((me and me.role == "owner") or current_user.role == "admin"):
+        raise HTTPException(403, "Only group owners or platform admins can assign group admins")
+
+    target_user = (
+        session.query(UserORM)
+        .filter(UserORM.id == payload.user_id)
+        .filter(UserORM.is_active == True)  # noqa: E712
+        .filter(UserORM.deleted == False)  # noqa: E712
+        .first()
+    )
+    if not target_user:
+        raise HTTPException(404, "User not found or inactive")
+
+    if any(p.user_id == payload.user_id for p in participants):
+        raise HTTPException(409, "User is already a member of this group")
+
+    # Platform admin auto-added only if not yet participating
+    if current_user.role == "admin" and payload.user_id != current_user.id and me is None:
         service.add_member(group_id, current_user.id, "admin")
     
     participant = service.add_member(group_id, payload.user_id, payload.role)
@@ -467,13 +524,29 @@ def update_member(
     current_user: User = Depends(get_current_user),
 ):
     group = service.get_group(group_id)
-    if not group:
+    if not group or not group.is_active:
         raise HTTPException(404, "Group not found")
     
     participants = service.get_participants(group_id)
     me = next((p for p in participants if p.user_id == current_user.id), None)
-    if not me or me.role not in ("owner", "admin") and current_user.role != "admin":
+    target = next((p for p in participants if p.user_id == user_id), None)
+    if not target:
+        raise HTTPException(404, "Member not found")
+
+    is_self_pref_only = (
+        user_id == current_user.id
+        and payload.role is None
+    )
+    if not is_self_pref_only and (not me or me.role not in ("owner", "admin")) and current_user.role != "admin":
         raise HTTPException(403, "Not authorized")
+
+    if payload.role is not None:
+        if payload.role not in ("member", "admin"):
+            raise HTTPException(400, "Invalid member role")
+        if target.role == "owner":
+            raise HTTPException(403, "Cannot change group owner role")
+        if payload.role == "admin" and not ((me and me.role == "owner") or current_user.role == "admin"):
+            raise HTTPException(403, "Only owners or platform admins can promote members")
     
     updated = service.update_participant(group_id, user_id, **payload.model_dump(exclude_unset=True))
     return {"participant": updated}
@@ -487,17 +560,19 @@ def remove_member(
     current_user: User = Depends(get_current_user),
 ):
     group = service.get_group(group_id)
-    if not group:
+    if not group or not group.is_active:
         raise HTTPException(404, "Group not found")
     
     participants = service.get_participants(group_id)
     me = next((p for p in participants if p.user_id == current_user.id), None)
     target = next((p for p in participants if p.user_id == user_id), None)
+    if not target:
+        raise HTTPException(404, "Member not found")
     
-    if not me or (me.role not in ("owner", "admin") and current_user.role != "admin"):
+    if user_id != current_user.id and (not me or me.role not in ("owner", "admin")) and current_user.role != "admin":
         raise HTTPException(403, "Not authorized")
     
-    if target and target.role == "owner" and me.role != "owner":
+    if target.role == "owner" and (not me or me.role != "owner") and current_user.role != "admin":
         raise HTTPException(403, "Cannot remove owner")
     
     service.remove_member(group_id, user_id)
@@ -507,7 +582,7 @@ def remove_member(
 # ---- Messages -----------------------------------------------------------------
 
 @router.get("/groups/{group_id}/messages", response_model=dict)
-def get_messages(
+async def get_messages(
     group_id: str,
     limit: int = 50,
     before: Optional[str] = None,
@@ -517,7 +592,7 @@ def get_messages(
     current_user: User = Depends(get_current_user),
 ):
     group = service.get_group(group_id)
-    if not group:
+    if not group or not group.is_active:
         raise HTTPException(404, "Group not found")
     
     participants = service.get_participants(group_id)
@@ -525,14 +600,13 @@ def get_messages(
     if not is_member and current_user.role != "admin":
         raise HTTPException(403, "Not a member")
     
-    messages = service.get_group_messages(group_id, limit=limit, before=before, after=after)
+    messages = service.get_group_messages(group_id, limit=min(max(limit, 1), 200), before=before, after=after)
     
     # Auto-translate for current user
-    import asyncio
     names = _names(session, {msg.sender_id for msg in messages})
     translated = []
     for msg in messages:
-        t = asyncio.run(service.translate_to_user_language(msg, current_user.id))
+        t = await service.translate_to_user_language(msg, current_user.id)
         translated.append(
             {
                 **msg.__dict__,
@@ -545,14 +619,14 @@ def get_messages(
 
 
 @router.post("/groups/{group_id}/messages", response_model=dict)
-def send_message(
+async def send_message(
     group_id: str,
     payload: MessageCreate,
     service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(get_current_user),
 ):
     group = service.get_group(group_id)
-    if not group:
+    if not group or not group.is_active:
         raise HTTPException(404, "Group not found")
     
     participants = service.get_participants(group_id)
@@ -564,11 +638,22 @@ def send_message(
         msg_type = MessageType(payload.type)
     except ValueError:
         raise HTTPException(400, "Invalid message type")
+
+    cleaned_content = (payload.content or "").strip()
+    if msg_type == MessageType.TEXT and not cleaned_content:
+        raise HTTPException(422, "Message content cannot be empty")
+    if len(cleaned_content) > 4000:
+        raise HTTPException(422, "Message content exceeds 4000 characters")
+
+    if payload.reply_to_id:
+        ref = service._messages.get(payload.reply_to_id)
+        if not ref or ref.group_id != group_id or ref.deleted_at is not None:
+            raise HTTPException(404, "Replied message not found in this group")
     
     message = service.send_group_message(
         group_id=group_id,
         sender_id=current_user.id,
-        content=payload.content,
+        content=cleaned_content if msg_type == MessageType.TEXT else payload.content,
         msg_type=msg_type,
         file_name=payload.file_name,
         file_size=payload.file_size,
@@ -579,8 +664,7 @@ def send_message(
     )
     
     # Broadcast to WebSocket connections
-    import asyncio
-    asyncio.run(manager.broadcast_to_group(
+    await manager.broadcast_to_group(
         {
             "type": "message",
             "message": {
@@ -588,7 +672,7 @@ def send_message(
                 "group_id": message.group_id,
                 "sender_id": message.sender_id,
                 "recipient_id": message.recipient_id,
-                "type": message.type,
+                "type": message.type.value if hasattr(message.type, "value") else message.type,
                 "content": message.content,
                 "original_language": message.original_language,
                 "duration_seconds": message.duration_seconds,
@@ -602,10 +686,11 @@ def send_message(
                 "is_edited": message.is_edited,
                 "reply_to_id": message.reply_to_id,
                 "translations": message.translations,
+                "sender_name": current_user.name,
             }
         },
         group_id,
-    ))
+    )
     
     return {"message": message}
 
@@ -618,13 +703,19 @@ def edit_message(
     current_user: User = Depends(get_current_user),
 ):
     message = service._messages.get(message_id)
-    if not message:
+    if not message or message.deleted_at is not None:
         raise HTTPException(404, "Message not found")
     
     if message.sender_id != current_user.id and current_user.role != "admin":
         raise HTTPException(403, "Not authorized")
+
+    cleaned = (payload.content or "").strip()
+    if not cleaned:
+        raise HTTPException(422, "Message content cannot be empty")
+    if len(cleaned) > 4000:
+        raise HTTPException(422, "Message content exceeds 4000 characters")
     
-    updated = service.edit_message(message_id, payload.content)
+    updated = service.edit_message(message_id, cleaned)
     return {"message": updated}
 
 
@@ -635,7 +726,7 @@ def delete_message(
     current_user: User = Depends(get_current_user),
 ):
     message = service._messages.get(message_id)
-    if not message:
+    if not message or message.deleted_at is not None:
         raise HTTPException(404, "Message not found")
     
     if message.sender_id != current_user.id and current_user.role != "admin":
@@ -652,8 +743,13 @@ def mark_read(
     current_user: User = Depends(get_current_user),
 ):
     message = service._messages.get(message_id)
-    if not message or not message.group_id:
+    if not message or message.deleted_at is not None or not message.group_id:
         raise HTTPException(404, "Message not found")
+
+    participants = service.get_participants(message.group_id)
+    is_member = any(p.user_id == current_user.id for p in participants)
+    if not is_member and current_user.role != "admin":
+        raise HTTPException(403, "Not a member of this group")
     
     service.mark_read(message.group_id, current_user.id, message_id)
     return {"marked_read": True}
@@ -662,20 +758,42 @@ def mark_read(
 # ---- Direct Messages ----------------------------------------------------------
 
 @router.post("/direct", response_model=dict)
-def send_direct_message(
+async def send_direct_message(
     payload: DirectMessageCreate,
     service: ChatService = Depends(get_chat_service),
+    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    from app.infrastructure.orm import UserORM
+
+    if payload.recipient_id == current_user.id:
+        raise HTTPException(400, "Cannot send a direct message to yourself")
+
+    recipient = (
+        session.query(UserORM)
+        .filter(UserORM.id == payload.recipient_id)
+        .filter(UserORM.is_active == True)  # noqa: E712
+        .filter(UserORM.deleted == False)  # noqa: E712
+        .first()
+    )
+    if not recipient:
+        raise HTTPException(404, "Recipient not found or inactive")
+
     try:
         msg_type = MessageType(payload.type)
     except ValueError:
         raise HTTPException(400, "Invalid message type")
+
+    cleaned_content = (payload.content or "").strip()
+    if msg_type == MessageType.TEXT and not cleaned_content:
+        raise HTTPException(422, "Message content cannot be empty")
+    if len(cleaned_content) > 4000:
+        raise HTTPException(422, "Message content exceeds 4000 characters")
     
     message = service.send_direct_message(
         sender_id=current_user.id,
         recipient_id=payload.recipient_id,
-        content=payload.content,
+        content=cleaned_content if msg_type == MessageType.TEXT else payload.content,
         msg_type=msg_type,
         file_name=payload.file_name,
         file_size=payload.file_size,
@@ -684,11 +802,38 @@ def send_direct_message(
         waveform_data=payload.waveform_data,
         reply_to_id=payload.reply_to_id,
     )
+
+    ws_payload = {
+        "type": "message",
+        "message": {
+            "id": message.id,
+            "group_id": None,
+            "sender_id": message.sender_id,
+            "recipient_id": message.recipient_id,
+            "type": message.type.value if hasattr(message.type, "value") else message.type,
+            "content": message.content,
+            "original_language": message.original_language,
+            "duration_seconds": message.duration_seconds,
+            "file_name": message.file_name,
+            "file_size": message.file_size,
+            "mime_type": message.mime_type,
+            "created_at": message.created_at,
+            "updated_at": message.updated_at,
+            "deleted_at": message.deleted_at,
+            "is_edited": message.is_edited,
+            "reply_to_id": message.reply_to_id,
+            "translations": message.translations,
+            "sender_name": current_user.name,
+        },
+    }
+    await manager.send_personal_message(ws_payload, payload.recipient_id)
+    await manager.send_personal_message(ws_payload, current_user.id)
+
     return {"message": message}
 
 
 @router.get("/direct/{other_user_id}", response_model=dict)
-def get_direct_messages(
+async def get_direct_messages(
     other_user_id: str,
     limit: int = 50,
     before: Optional[str] = None,
@@ -696,14 +841,28 @@ def get_direct_messages(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    messages = service.get_direct_messages(current_user.id, other_user_id, limit=limit, before=before)
+    from app.infrastructure.orm import UserORM
+
+    if other_user_id == current_user.id:
+        raise HTTPException(400, "Cannot open a direct chat with yourself")
+    other = (
+        session.query(UserORM)
+        .filter(UserORM.id == other_user_id)
+        .filter(UserORM.deleted == False)  # noqa: E712
+        .first()
+    )
+    if not other:
+        raise HTTPException(404, "User not found")
+
+    messages = service.get_direct_messages(
+        current_user.id, other_user_id, limit=min(max(limit, 1), 200), before=before
+    )
     
     # Auto-translate
-    import asyncio
     names = _names(session, {msg.sender_id for msg in messages})
     translated = []
     for msg in messages:
-        t = asyncio.run(service.translate_to_user_language(msg, current_user.id))
+        t = await service.translate_to_user_language(msg, current_user.id)
         translated.append(
             {
                 **msg.__dict__,
@@ -911,10 +1070,10 @@ def mark_thread_read(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Clear the unread badge for a thread (groups track it, directs do not)."""
+    """Clear the unread badge for a thread after confirming membership."""
     from datetime import datetime
 
-    from app.infrastructure.orm import GroupParticipantORM
+    from app.infrastructure.orm import DirectChatORM, GroupParticipantORM
 
     now = datetime.utcnow().isoformat()
     participant = (
@@ -925,6 +1084,22 @@ def mark_thread_read(
     if participant is not None:
         participant.last_read_at = now
         session.commit()
+        return {"thread_id": thread_id, "read_at": now}
+
+    direct = (
+        session.query(DirectChatORM)
+        .filter(DirectChatORM.id == thread_id)
+        .filter(
+            (DirectChatORM.user1_id == current_user.id)
+            | (DirectChatORM.user2_id == current_user.id)
+        )
+        .first()
+    )
+    if direct is not None:
+        return {"thread_id": thread_id, "read_at": now}
+
+    if current_user.role != "admin":
+        raise HTTPException(403, "Not a participant in this thread")
     return {"thread_id": thread_id, "read_at": now}
 
 

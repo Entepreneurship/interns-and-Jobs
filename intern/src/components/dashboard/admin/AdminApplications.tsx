@@ -49,7 +49,7 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 export function AdminApplications() {
-  const { toast, session } = useApp();
+  const { toast, session, openModal } = useApp();
   const [applications, setApplications] = React.useState<ApplicationDto[]>([]);
   const [total, setTotal] = React.useState(0);
   const [status, setStatus] = React.useState<"loading" | "ready" | "error">("loading");
@@ -222,7 +222,25 @@ export function AdminApplications() {
                         <button
                           type="button"
                           className="btn btn-sm btn-ghost"
-                          onClick={() => console.log("View details", app.id)}
+                          onClick={() =>
+                            openModal(
+                              app.user_name || "Application details",
+                              <div style={{ display: "grid", gap: "10px", fontSize: "13px", lineHeight: 1.55 }}>
+                                <div><b>Role:</b> {app.type === "internship" ? app.placement_title : app.job_title}</div>
+                                <div><b>Status:</b> {app.status}</div>
+                                <div><b>Applicant:</b> {app.user_name || app.user_id} ({app.user_email || "—"})</div>
+                                <div><b>Submitted:</b> {app.created_at.split("T")[0]}</div>
+                                {app.statement && (
+                                  <div style={{ marginTop: "6px", padding: "10px 12px", background: "var(--paper-2)", borderRadius: "var(--r-md)" }}>
+                                    <b>Statement</b>
+                                    <p style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{app.statement}</p>
+                                  </div>
+                                )}
+                              </div>,
+                              "Close",
+                              null
+                            )
+                          }
                         >
                           <Icon name="eye" size={13} /> View
                         </button>

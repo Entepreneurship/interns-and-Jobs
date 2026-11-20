@@ -65,6 +65,23 @@ SKILLS: list[Skill] = [
     # Professional
     Skill("Problem Solving", "Professional", ("problem solving", "problem-solving", "analytical thinking")),
     Skill("Teamwork", "Professional", ("teamwork", "collaboration", "team lead", "agile", "scrum")),
+    # Engineering, Built Environment & Telecoms
+    Skill("AutoCAD", "Engineering", ("autocad", "cad", "civil 3d", "revit", "drafting")),
+    Skill("Civil & Structural Design", "Engineering", ("structural", "hydraulics", "water network", "surveying")),
+    Skill("Networking & Telecoms", "Engineering", ("cisco", "ccna", "telecom", "fiber", "networking", "rf")),
+    Skill("GIS & Mapping", "Data", ("gis", "qgis", "arcgis", "geospatial", "mapping")),
+    # Finance, Tax & Supply Chain
+    Skill("Accounting & Tax", "Finance", ("accounting", "cpa", "efris", "ura", "tax", "ifrs", "bookkeeping")),
+    Skill("Financial Modelling", "Finance", ("financial model", "valuation", "budgeting", "credit analysis")),
+    Skill("Procurement & PPDA", "Operations", ("procurement", "ppda", "tendering", "supply chain", "logistics")),
+    # Legal & Governance
+    Skill("Legal Research", "Law", ("legal research", "case law", "statute", "judiciary", "ldc")),
+    Skill("Contract Drafting", "Law", ("contract", "legal drafting", "mou", "compliance")),
+    # Agriculture, Health & Education
+    Skill("Agribusiness", "Agriculture", ("agribusiness", "value chain", "dairy", "cold chain", "cooperatives")),
+    Skill("Field Agronomy", "Agriculture", ("agronomy", "crop", "soil", "extension")),
+    Skill("Clinical Data", "Health", ("dhis2", "epidemiology", "clinical data", "hmis")),
+    Skill("Curriculum Design", "Education", ("curriculum", "pedagogy", "training module", "facilitation")),
 ]
 
 SKILL_NAMES: list[str] = [s.name for s in SKILLS]
@@ -86,6 +103,16 @@ REQUIRED_SKILLS: dict[str, list[str]] = {
     "p10": ["UX Research", "Research", "Prototyping", "Statistics"],
     "p11": ["Brand Identity", "Typography", "Illustrator", "Copywriting"],
     "p12": ["Monitoring & Evaluation", "Data Analysis", "Report Writing", "Statistics"],
+    "p15": ["Accounting & Tax", "Excel", "Financial Modelling", "Report Writing"],
+    "p16": ["AutoCAD", "Civil & Structural Design", "GIS & Mapping", "Report Writing"],
+    "p17": ["Networking & Telecoms", "Python", "APIs", "SQL"],
+    "p18": ["TypeScript", "React", "Node.js", "APIs", "Git"],
+    "p19": ["Legal Research", "Contract Drafting", "Policy Analysis", "Report Writing"],
+    "p20": ["Agribusiness", "Field Agronomy", "Excel", "Stakeholder Engagement"],
+    "p21": ["Clinical Data", "Patient Records", "Health Informatics", "Data Cleaning"],
+    "p22": ["Financial Modelling", "Accounting & Tax", "Excel", "Communication"],
+    "p23": ["Curriculum Design", "Communication", "Stakeholder Engagement", "Teamwork"],
+    "p24": ["GIS & Mapping", "Data Cleaning", "Dashboards", "Report Writing"],
 }
 
 # Proficiency rating -> share of the skill requirement it satisfies.

@@ -5,7 +5,7 @@ import { useApp } from "../../context/AppContext";
 import { NAV, ROLE_META } from "../../data";
 import { DashboardView, UserRole } from "../../types";
 import { Icon } from "../icons/Icons";
-import { listThreads } from "../../lib/chat";
+import { chatAvailable, listThreads } from "../../lib/chat";
 import { MessagesView } from "./common/MessagesView";
 
 // Views
@@ -77,6 +77,10 @@ export function DashboardShell() {
   useEffect(() => {
     let alive = true;
     const load = () => {
+      if (!session || !chatAvailable()) {
+        if (alive) setUnread(0);
+        return;
+      }
       listThreads()
         .then((list) => {
           if (alive) setUnread(list.reduce((sum, t) => sum + (t.unread_count || 0), 0));
@@ -84,12 +88,15 @@ export function DashboardShell() {
         .catch(() => undefined);
     };
     load();
+    const onUpdated = () => load();
+    window.addEventListener("bw:chat-updated", onUpdated);
     const timer = window.setInterval(load, 60000);
     return () => {
       alive = false;
+      window.removeEventListener("bw:chat-updated", onUpdated);
       window.clearInterval(timer);
     };
-  }, [dash]);
+  }, [dash, session?.id]);
 
   // Identity shown in the sidebar / "me" chip comes from the signed-in account,
   // not the hardcoded ROLE_META name. Falls back only if somehow unauthed.

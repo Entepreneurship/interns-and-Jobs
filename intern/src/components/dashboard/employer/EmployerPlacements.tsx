@@ -486,7 +486,7 @@ export function EmployerPlacements() {
               </FieldGroup>
 
               <FieldGroup columns={2}>
-                <Field label="Location" required>
+                <Field label="Location" required hint="e.g., Kampala, Entebbe, Jinja, Mbarara, Gulu, Wakiso, or Remote">
                   <Input
                     required
                     value={form.loc}
@@ -507,19 +507,19 @@ export function EmployerPlacements() {
               </FieldGroup>
 
               <FieldGroup columns={2}>
-                <Field label="Eligible Courses" required hint="Comma separated (e.g., Computer Science, Design, Business)">
+                <Field label="Eligible Courses" required hint="Comma separated (e.g., Accounting & Finance, Civil Engineering, Software Engineering, Law)">
                   <Input
                     required
                     value={form.courses}
                     onChange={(e) => setForm({ ...form, courses: e.target.value })}
-                    placeholder="Computer Science, Design, Business"
+                    placeholder="Accounting & Finance, Software Engineering, Civil Engineering"
                   />
                 </Field>
-                <Field label="Minimum Grade" hint="e.g., CGPA 3.0+">
+                <Field label="Minimum Grade" hint="e.g., Second Class Upper or CGPA 3.0+">
                   <Input
                     value={form.grade}
                     onChange={(e) => setForm({ ...form, grade: e.target.value })}
-                    placeholder="CGPA 3.0+"
+                    placeholder="Second Class Upper"
                   />
                 </Field>
               </FieldGroup>
@@ -556,11 +556,11 @@ export function EmployerPlacements() {
                     placeholder="3 months"
                   />
                 </Field>
-                <Field label="Stipend / Salary" hint="e.g., $500/month or Competitive">
+                <Field label="Stipend / Salary" hint="e.g., UGX 1,000,000 / month or $500 / month">
                   <Input
                     value={form.stipend}
                     onChange={(e) => setForm({ ...form, stipend: e.target.value })}
-                    placeholder="$500/month or Competitive"
+                    placeholder="UGX 1,000,000 / month"
                   />
                 </Field>
               </FieldGroup>
@@ -590,11 +590,11 @@ export function EmployerPlacements() {
                       placeholder="40"
                     />
                   </Field>
-                  <Field label="Budget Range" hint="e.g., $500-$1,000">
+                  <Field label="Budget Range" hint="e.g., UGX 1,500,000 - 2,500,000">
                     <Input
                       value={form.budgetRange}
                       onChange={(e) => setForm({ ...form, budgetRange: e.target.value })}
-                      placeholder="$500-$1,000"
+                      placeholder="UGX 1,500,000 - 2,500,000"
                     />
                   </Field>
                 </FieldGroup>
@@ -621,11 +621,11 @@ export function EmployerPlacements() {
             {form.opportunityType === "entry_level" && (
               <SectionCard title="Entry-Level Details" icon="brief">
                 <FieldGroup columns={2}>
-                  <Field label="Salary Range" hint="e.g., $30,000-$40,000/year">
+                  <Field label="Salary Range" hint="e.g., UGX 2,400,000 - 3,500,000 / month">
                     <Input
                       value={form.salaryRange}
                       onChange={(e) => setForm({ ...form, salaryRange: e.target.value })}
-                      placeholder="$30,000-$40,000/year"
+                      placeholder="UGX 2,400,000 - 3,500,000 / month"
                     />
                   </Field>
                   <Field label="Probation Period" hint="e.g., 3 months">
@@ -661,17 +661,17 @@ export function EmployerPlacements() {
               <Field fullWidth label="Requirements (one per line)" hint="List each requirement on a new line">
                 <Textarea
                   rows={5}
-                  placeholder="Bachelor's degree in Computer Science&#10;Strong Python and React skills&#10;Experience with REST APIs&#10;Good communication skills"
+                  placeholder="Bachelor's degree in Accounting & Finance, Civil Engineering, or Computer Science&#10;Academic transcript from a recognised Ugandan or international university&#10;Practical proficiency in Excel, AutoCAD, or TypeScript&#10;Good communication skills"
                   value={form.requirements}
                   onChange={(e) => setForm({ ...form, requirements: e.target.value })}
                 />
               </Field>
 
-              <Field fullWidth label="Skills Required (comma separated)" hint="e.g., Python, React, SQL, Git, Agile">
+              <Field fullWidth label="Skills Required (comma separated)" hint="e.g., Accounting & Tax, AutoCAD, TypeScript, GIS & Mapping, Monitoring & Evaluation">
                 <Input
                   value={form.skillsRequired}
                   onChange={(e) => setForm({ ...form, skillsRequired: e.target.value })}
-                  placeholder="Python, React, SQL, Git, Agile"
+                  placeholder="Accounting & Tax, Excel, SQL, AutoCAD"
                 />
               </Field>
             </SectionCard>

@@ -223,7 +223,7 @@ export function EmployerJobs() {
                   className="field-input"
                   value={form.salary}
                   onChange={(e) => handleChange("salary", e.target.value)}
-                  placeholder="e.g. $5,000/month or UGX 2,000,000/month"
+                  placeholder="e.g. UGX 3,800,000 / month or $1,800 / month"
                 />
               </div>
               <div className="field">

@@ -214,6 +214,19 @@ const SKILLS: SkillDef[] = [
   { name: "Communication", category: "Communication", keywords: ["communication", "presentation", "public speaking", "storytelling"] },
   { name: "Problem Solving", category: "Professional", keywords: ["problem solving", "problem-solving", "analytical thinking"] },
   { name: "Teamwork", category: "Professional", keywords: ["teamwork", "collaboration", "team lead", "agile", "scrum"] },
+  { name: "AutoCAD", category: "Engineering", keywords: ["autocad", "cad", "civil 3d", "revit", "drafting"] },
+  { name: "Civil & Structural Design", category: "Engineering", keywords: ["structural", "hydraulics", "water network", "surveying"] },
+  { name: "Networking & Telecoms", category: "Engineering", keywords: ["cisco", "ccna", "telecom", "fiber", "networking", "rf"] },
+  { name: "GIS & Mapping", category: "Data", keywords: ["gis", "qgis", "arcgis", "geospatial", "mapping"] },
+  { name: "Accounting & Tax", category: "Finance", keywords: ["accounting", "cpa", "efris", "ura", "tax", "ifrs", "bookkeeping"] },
+  { name: "Financial Modelling", category: "Finance", keywords: ["financial model", "valuation", "budgeting", "credit analysis"] },
+  { name: "Procurement & PPDA", category: "Operations", keywords: ["procurement", "ppda", "tendering", "supply chain", "logistics"] },
+  { name: "Legal Research", category: "Law", keywords: ["legal research", "case law", "statute", "judiciary", "ldc"] },
+  { name: "Contract Drafting", category: "Law", keywords: ["contract", "legal drafting", "mou", "compliance"] },
+  { name: "Agribusiness", category: "Agriculture", keywords: ["agribusiness", "value chain", "dairy", "cold chain", "cooperatives"] },
+  { name: "Field Agronomy", category: "Agriculture", keywords: ["agronomy", "crop", "soil", "extension"] },
+  { name: "Clinical Data", category: "Health", keywords: ["dhis2", "epidemiology", "clinical data", "hmis"] },
+  { name: "Curriculum Design", category: "Education", keywords: ["curriculum", "pedagogy", "training module", "facilitation"] },
 ];
 
 const REQUIRED_SKILLS: Record<string, string[]> = {
@@ -229,6 +242,16 @@ const REQUIRED_SKILLS: Record<string, string[]> = {
   p10: ["UX Research", "Research", "Prototyping", "Statistics"],
   p11: ["Brand Identity", "Typography", "Illustrator", "Copywriting"],
   p12: ["Monitoring & Evaluation", "Data Analysis", "Report Writing", "Statistics"],
+  p15: ["Accounting & Tax", "Excel", "Financial Modelling", "Report Writing"],
+  p16: ["AutoCAD", "Civil & Structural Design", "GIS & Mapping", "Report Writing"],
+  p17: ["Networking & Telecoms", "Python", "APIs", "SQL"],
+  p18: ["TypeScript", "React", "Node.js", "APIs", "Git"],
+  p19: ["Legal Research", "Contract Drafting", "Policy Analysis", "Report Writing"],
+  p20: ["Agribusiness", "Field Agronomy", "Excel", "Stakeholder Engagement"],
+  p21: ["Clinical Data", "Patient Records", "Health Informatics", "Data Cleaning"],
+  p22: ["Financial Modelling", "Accounting & Tax", "Excel", "Communication"],
+  p23: ["Curriculum Design", "Communication", "Stakeholder Engagement", "Teamwork"],
+  p24: ["GIS & Mapping", "Data Cleaning", "Dashboards", "Report Writing"],
 };
 
 const GRADE_RANK: Record<string, number> = {
@@ -377,7 +400,10 @@ interface Store {
     name: string;
     type: string;
     description: string;
+    owner_id: string;
+    is_active: boolean;
     member_ids: string[];
+    member_roles: Record<string, string>;
     messages: Array<{
       id: string;
       group_id: string | null;
@@ -421,6 +447,7 @@ interface Store {
     translated_content: string | null;
     sender_name: string;
   }>;
+  threadReadAt: Map<string, Record<string, string>>;
   testimonials: Array<{
     id: string;
     uploaded_at: string;
@@ -444,6 +471,16 @@ function createInitialStore(): Store {
     { id: "o8", name: "Twaweza Foundation", type: "NGO", sector: "Civic research", loc: "Dar es Salaam", seal: "TW", about: "Research and advocacy on public service delivery in East Africa.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-01-25", is_active: true },
     { id: "o9", name: "Brac Uganda", type: "NGO", sector: "Development", loc: "Kampala", seal: "BU", about: "Development organisation working on livelihoods, education and financial inclusion.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-01-26", is_active: true },
     { id: "o10", name: "Makerere University — School of Computing", type: "University", sector: "Research", loc: "Kampala", seal: "MU", about: "Research group on human-computer interaction and public-interest technology.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-01-28", is_active: true },
+    { id: "o11", name: "Uganda Revenue Authority", type: "Government", sector: "Revenue & tax administration", loc: "Kampala", seal: "URA", about: "National tax administration body overseeing domestic revenue, customs, EFRIS compliance and fiscal analysis across Uganda.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-01-29", is_active: true },
+    { id: "o12", name: "Centenary Bank Uganda", type: "Company", sector: "Banking & microfinance", loc: "Mbarara", seal: "CBL", about: "Leading commercial and microfinance bank serving SMEs, agribusinesses and households across every region of Uganda.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-01-30", is_active: true },
+    { id: "o13", name: "MTN Uganda", type: "Company", sector: "Telecommunications & fintech", loc: "Kampala", seal: "MTN", about: "National telecommunications and mobile-money operator powering 4G/5G connectivity and MoMo merchant APIs.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-02-01", is_active: true },
+    { id: "o14", name: "Ministry of Health Uganda", type: "Government", sector: "Public health", loc: "Entebbe", seal: "MOH", about: "National ministry coordinating disease surveillance, DHIS2 health information systems and district hospital delivery.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-02-02", is_active: true },
+    { id: "o15", name: "National Water and Sewerage Corporation", type: "Government", sector: "Utilities & civil infrastructure", loc: "Jinja", seal: "NWSC", about: "Public utility engineering and operating urban water treatment plants and piped distribution networks across Uganda.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-02-03", is_active: true },
+    { id: "o16", name: "SafeBoda Uganda", type: "Company", sector: "Mobility & fintech", loc: "Kampala", seal: "SB", about: "Kampala mobility and digital payments super-app connecting thousands of riders, drivers and urban merchants.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-02-04", is_active: true },
+    { id: "o17", name: "Jesa Farm Dairy", type: "Company", sector: "Agribusiness & manufacturing", loc: "Wakiso", seal: "JFD", about: "Integrated Ugandan dairy producer partnering with smallholder farmers on extension services, cold-chain logistics and quality processing.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-02-05", is_active: true },
+    { id: "o18", name: "Gulu Regional Innovation Hub", type: "NGO", sector: "Digital skills & youth", loc: "Gulu", seal: "GRIH", about: "Northern Uganda community innovation hub equipping university graduates with practical ICT, entrepreneurship and teaching skills.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-02-06", is_active: true },
+    { id: "o19", name: "Mulago National Referral Hospital", type: "Government", sector: "Clinical & health systems", loc: "Kampala", seal: "MNRH", about: "Uganda's flagship national referral and teaching hospital advancing electronic medical records and clinical research.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-02-07", is_active: true },
+    { id: "o20", name: "Katende, Ssempebwa & Co. Advocates", type: "Company", sector: "Corporate & commercial law", loc: "Kampala", seal: "KSC", about: "Full-service Kampala commercial law firm advising energy, infrastructure, banking and technology clients.", billing_email: null, tax_id: null, billing_address: {}, created_at: "2026-02-08", is_active: true },
   ];
 
   const basePlacements = [
@@ -461,6 +498,16 @@ function createInitialStore(): Store {
     { id: "p12", title: "Monitoring & Evaluation Intern", org_id: "o2", courses: ["Statistics", "Economics", "Business"], grade: "Second Class Upper", loc: "Kampala", mode: "On-site", duration: "5 months", stipend: "UGX 950,000 / month", deadline: "2027-04-08", slots: 4, status: "Open", applicants: 39, docs: ["Transcript", "Student ID", "Writing sample"], testimonial: true, about: "Track outcomes across national digital skills programmes.", duties: ["Maintain indicator frameworks", "Run quarterly reviews", "Produce analysis notes"] },
     { id: "p13", title: "Website Redesign Gig", org_id: "o4", courses: ["Design", "Computer Science"], grade: "CGPA 2.5+", loc: "Remote", mode: "Remote", duration: "4 weeks", stipend: "$1,500 flat", deadline: "2027-03-15", slots: 1, status: "Open", applicants: 12, docs: ["Portfolio"], testimonial: false, about: "Redesign the marketing website for a product launch. Deliver Figma mockups and a style guide.", duties: ["Audit current site", "Design new pages in Figma", "Deliver component library"], opportunity_type: "gig", duration_hours: 40, budget_range: "$1,000-$2,000", milestones: ["Discovery & audit", "Wireframes", "High-fidelity mockups", "Style guide & handoff"], remote_ok: true, skills_required: ["Figma", "UI Design", "Design Systems"] },
     { id: "p14", title: "Junior Data Analyst", org_id: "o2", courses: ["Statistics", "Computer Science", "Economics"], grade: "Second Class Lower", loc: "Kampala", mode: "On-site", duration: "12 months", stipend: "UGX 2,500,000 / month", deadline: "2027-04-30", slots: 3, status: "Open", applicants: 45, docs: ["Transcript", "National ID", "Recommendation letter"], testimonial: false, about: "Full-time entry-level role analysing public sector data. Includes structured onboarding and mentorship.", duties: ["Build and maintain dashboards", "Analyse district-level indicators", "Present findings to stakeholders"], opportunity_type: "entry_level", salary_range: "UGX 2,200,000 - 3,000,000 / month", probation_period: "3 months", training_included: true, career_path: "Progress to Senior Data Analyst within 18 months", skills_required: ["SQL", "Excel", "Data Cleaning", "Dashboards", "Statistics"] },
+    { id: "p15", title: "Domestic Tax & Accounting Intern", org_id: "o11", courses: ["Accounting & Finance", "Economics", "Business", "Statistics"], grade: "Second Class Upper", loc: "Kampala", mode: "On-site", duration: "6 months", stipend: "UGX 1,100,000 / month", deadline: "2027-05-15", slots: 8, status: "Open", applicants: 64, docs: ["Transcript", "National ID", "Recommendation letter"], testimonial: true, about: "Hands-on placement with URA domestic revenue teams supporting EFRIS taxpayer onboarding, VAT reconciliation and audit schedules.", duties: ["Assist taxpayers with EFRIS return reconciliations", "Prepare monthly sector revenue summaries", "Support compliance verification files"], skills_required: ["Accounting & Tax", "Excel", "Financial Modelling", "Report Writing"] },
+    { id: "p16", title: "Civil & Water Infrastructure Intern", org_id: "o15", courses: ["Civil Engineering", "Engineering", "Architecture"], grade: "Second Class Upper", loc: "Jinja", mode: "On-site", duration: "4 months", stipend: "UGX 950,000 / month", deadline: "2027-05-10", slots: 5, status: "Open", applicants: 38, docs: ["Transcript", "Student ID", "Recommendation letter"], testimonial: true, about: "Field and engineering office placement on treated water mains expansion and pump-station maintenance along the Lake Victoria basin.", duties: ["Draft pipe-network layouts in AutoCAD", "Log hydraulic pressure and GIS field surveys", "Assist site engineers during inspections"], skills_required: ["AutoCAD", "Civil & Structural Design", "GIS & Mapping", "Report Writing"] },
+    { id: "p17", title: "Telecoms & MoMo Systems Intern", org_id: "o13", courses: ["Electrical Engineering", "Telecommunications Engineering", "Computer Science", "Software Engineering"], grade: "CGPA 3.4+", loc: "Kampala", mode: "Hybrid", duration: "6 months", stipend: "UGX 1,400,000 / month", deadline: "2027-05-20", slots: 4, status: "Open", applicants: 92, docs: ["Transcript", "Student ID", "CV"], testimonial: true, about: "Join Uganda's core network reliability and MoMo API integration engineers supporting national uptime and merchant sandboxes.", duties: ["Monitor core network telemetry alerts", "Build Python automation scripts for API health checks", "Document merchant integration guides"], skills_required: ["Networking & Telecoms", "Python", "APIs", "SQL"] },
+    { id: "p18", title: "Graduate Software Engineer", org_id: "o16", courses: ["Software Engineering", "Computer Science", "Information Technology"], grade: "Second Class Lower", loc: "Kampala", mode: "Hybrid", duration: "12 months", stipend: "UGX 3,200,000 / month", deadline: "2027-06-01", slots: 3, status: "Open", applicants: 78, docs: ["Transcript", "CV", "Portfolio"], testimonial: false, about: "Full-time graduate engineering track building Kampala rider dispatch, cashless wallet settlement and merchant web portals.", duties: ["Ship TypeScript services and React dashboards", "Integrate mobile-money settlement webhooks", "Pair with senior engineers on code reviews"], opportunity_type: "entry_level", salary_range: "UGX 2,800,000 - 3,800,000 / month", probation_period: "3 months", training_included: true, career_path: "Graduate Engineer to Mid-Level Backend/Frontend Engineer in 12 months", skills_required: ["TypeScript", "React", "Node.js", "APIs", "Git"] },
+    { id: "p19", title: "Corporate & Commercial Legal Clerkship", org_id: "o20", courses: ["Law"], grade: "Second Class Upper", loc: "Kampala", mode: "On-site", duration: "5 months", stipend: "UGX 1,000,000 / month", deadline: "2027-05-18", slots: 3, status: "Open", applicants: 44, docs: ["Transcript", "Recommendation letter", "Writing sample"], testimonial: true, about: "Clerkship for LLB candidates and Law Development Centre finalists supporting commercial agreements, regulatory filings and Ugandan court briefs.", duties: ["Draft commercial contracts and board resolutions", "Conduct statutory and East African case research", "Prepare transaction due-diligence bundles"], skills_required: ["Legal Research", "Contract Drafting", "Policy Analysis", "Report Writing"] },
+    { id: "p20", title: "Agribusiness Value-Chain Intern", org_id: "o17", courses: ["Agribusiness", "Agriculture", "Business", "Economics"], grade: "Second Class Lower", loc: "Wakiso", mode: "On-site", duration: "4 months", stipend: "UGX 850,000 / month", deadline: "2027-05-25", slots: 6, status: "Open", applicants: 31, docs: ["Transcript", "National ID", "Recommendation letter"], testimonial: true, about: "Work across Wakiso and central dairy cooperatives on milk quality testing, farmer extension training and cold-chain dispatch tracking.", duties: ["Coordinate farmer cooperative collection records", "Track cold-chain transport volumes in Excel", "Support field agronomy and feed workshops"], skills_required: ["Agribusiness", "Field Agronomy", "Excel", "Stakeholder Engagement"] },
+    { id: "p21", title: "Clinical Health Informatics Officer", org_id: "o19", courses: ["Medicine & Nursing", "Public Health", "Statistics", "Information Technology"], grade: "Second Class Lower", loc: "Kampala", mode: "On-site", duration: "12 months", stipend: "UGX 2,600,000 / month", deadline: "2027-06-05", slots: 4, status: "Open", applicants: 53, docs: ["Transcript", "National ID", "Recommendation letter"], testimonial: false, about: "Entry-level clinical informatics appointment supporting Mulago wards in DHIS2 reporting, triage records and patient outcome audits.", duties: ["Audit electronic ward admissions and DHIS2 feeds", "Train clinical records clerks on quality standards", "Generate monthly epidemiology summaries"], opportunity_type: "entry_level", salary_range: "UGX 2,400,000 - 2,900,000 / month", probation_period: "3 months", training_included: true, career_path: "Clinical Informatics Officer to Regional HMIS Lead", skills_required: ["Clinical Data", "Patient Records", "Health Informatics", "Data Cleaning"] },
+    { id: "p22", title: "SME Banking & Microfinance Graduate Trainee", org_id: "o12", courses: ["Accounting & Finance", "Business", "Economics", "Procurement & Supply Chain"], grade: "Second Class Upper", loc: "Mbarara", mode: "On-site", duration: "12 months", stipend: "UGX 2,400,000 / month", deadline: "2027-06-10", slots: 5, status: "Open", applicants: 67, docs: ["Transcript", "National ID", "Recommendation letter"], testimonial: true, about: "Structured graduate banking rotation across Western Uganda branches covering SME credit appraisal, agricultural loans and branch operations.", duties: ["Build cashflow models for SME loan appraisals", "Review collateral and financial statements", "Conduct client field visits across Ankole districts"], opportunity_type: "entry_level", salary_range: "UGX 2,200,000 - 2,700,000 / month", probation_period: "6 months", training_included: true, career_path: "Graduate Trainee to Credit Relationship Manager", skills_required: ["Financial Modelling", "Accounting & Tax", "Excel", "Communication"] },
+    { id: "p23", title: "Youth Digital Literacy & Training Intern", org_id: "o18", courses: ["Education", "Information Technology", "Mass Communication", "Journalism & Communication"], grade: "Second Class Lower", loc: "Gulu", mode: "Hybrid", duration: "6 months", stipend: "UGX 900,000 / month", deadline: "2027-05-28", slots: 4, status: "Open", applicants: 29, docs: ["Transcript", "Student ID", "Recommendation letter"], testimonial: true, about: "Facilitate hands-on digital literacy, career readiness and practical office software bootcamps for secondary school and TVET youth across Acholi.", duties: ["Facilitate weekly youth ICT workshops", "Organise community curriculum handbooks", "Track graduate attendance and mentorship outcomes"], skills_required: ["Curriculum Design", "Communication", "Stakeholder Engagement", "Teamwork"] },
+    { id: "p24", title: "GIS District Health & Water Mapping Gig", org_id: "o14", courses: ["Civil Engineering", "Public Health", "Statistics", "Agriculture"], grade: "CGPA 2.5+", loc: "Entebbe", mode: "Hybrid", duration: "6 weeks", stipend: "UGX 1,800,000 flat", deadline: "2027-05-12", slots: 2, status: "Open", applicants: 21, docs: ["Transcript", "Portfolio"], testimonial: false, about: "Short-term geospatial project compiling district health-centre coordinates and borehole coverage layers into Ministry briefings.", duties: ["Clean district GPS coordinates and facility registries", "Produce QGIS regional coverage maps", "Deliver summary indicator dashboard"], opportunity_type: "gig", duration_hours: 60, budget_range: "UGX 1,500,000 - 2,200,000", milestones: ["Coordinate cleanup", "QGIS map layers", "Executive briefing export"], remote_ok: true, skills_required: ["GIS & Mapping", "Data Cleaning", "Dashboards", "Report Writing"] },
   ];
 
   const placements: DbPlacement[] = basePlacements.map((p, idx) => ({
@@ -488,6 +535,16 @@ function createInitialStore(): Store {
     { id: "j2", title: "Graduate Data Analyst", org_id: "o2", loc: "Kampala", mode: "On-site", employment_type: "Full time", salary: "UGX 2,000,000 / month", closes_at: "2026-12-10", summary: "Turn public-sector datasets into useful decisions and reports.", requirements: ["SQL", "Excel", "Statistics"], status: "Open", review_status: "approved", published_at: "2026-02-05", review_reason: "", applicants: 22 },
     { id: "j3", title: "Software Engineer I", org_id: "o5", loc: "Berlin", mode: "Hybrid", employment_type: "Full time", salary: "€3,200 / month", closes_at: "2026-12-20", summary: "Build reliable payment tools for merchants across East Africa.", requirements: ["Python", "APIs", "Git"], status: "Open", review_status: "approved", published_at: "2026-02-10", review_reason: "", applicants: 31 },
     { id: "j4", title: "Monitoring and Evaluation Officer", org_id: "o9", loc: "Kampala", mode: "On-site", employment_type: "Full time", salary: "UGX 2,400,000 / month", closes_at: "2026-12-08", summary: "Support evidence-led programmes that improve livelihoods.", requirements: ["Monitoring & Evaluation", "Report Writing"], status: "Open", review_status: "approved", published_at: "2026-02-12", review_reason: "", applicants: 19 },
+    { id: "j5", title: "Tax Compliance & EFRIS Officer", org_id: "o11", loc: "Kampala", mode: "On-site", employment_type: "Full time", salary: "UGX 4,200,000 / month", closes_at: "2027-06-15", summary: "Lead domestic taxpayer audits, EFRIS compliance reviews and revenue reconciliations across Kampala sectors.", requirements: ["BCom / Accounting & Finance", "CPA Uganda Part II+", "Accounting & Tax"], status: "Open", review_status: "approved", published_at: "2026-02-14", review_reason: "", applicants: 28 },
+    { id: "j6", title: "Full-Stack Software Engineer (Fintech)", org_id: "o16", loc: "Kampala", mode: "Hybrid", employment_type: "Full time", salary: "UGX 5,500,000 / month", closes_at: "2027-06-20", summary: "Build high-availability transport and mobile-money settlement services for Uganda's largest urban mobility network.", requirements: ["BSc Software Engineering / CS", "TypeScript", "Node.js", "APIs"], status: "Open", review_status: "approved", published_at: "2026-02-16", review_reason: "", applicants: 35 },
+    { id: "j7", title: "Civil & Water Network Engineer", org_id: "o15", loc: "Jinja", mode: "On-site", employment_type: "Full time", salary: "UGX 4,500,000 / month", closes_at: "2027-06-18", summary: "Manage municipal water pipeline rehabilitation, hydraulic modelling and plant expansion works in Eastern Uganda.", requirements: ["BSc Civil Engineering", "UIPE Registration Track", "AutoCAD", "GIS & Mapping"], status: "Open", review_status: "approved", published_at: "2026-02-18", review_reason: "", applicants: 17 },
+    { id: "j8", title: "Core Telecoms & MoMo Engineer", org_id: "o13", loc: "Kampala", mode: "Hybrid", employment_type: "Full time", salary: "UGX 5,200,000 / month", closes_at: "2027-06-25", summary: "Maintain carrier-grade IP/MPLS telecom links and automate mobile-money gateway observability.", requirements: ["BSc Electrical / Telecoms Engineering", "Networking & Telecoms", "Python", "SQL"], status: "Open", review_status: "approved", published_at: "2026-02-20", review_reason: "", applicants: 29 },
+    { id: "j9", title: "SME Credit & Relationship Officer", org_id: "o12", loc: "Mbarara", mode: "On-site", employment_type: "Full time", salary: "UGX 3,100,000 / month", closes_at: "2027-06-12", summary: "Appraise commercial, school and agribusiness credit facilities and grow sustainable SME portfolios in Western Uganda.", requirements: ["BBA / Accounting & Finance", "Financial Modelling", "Communication"], status: "Open", review_status: "approved", published_at: "2026-02-22", review_reason: "", applicants: 24 },
+    { id: "j10", title: "Procurement & PPDA Contracts Specialist", org_id: "o14", loc: "Kampala", mode: "On-site", employment_type: "Full time", salary: "UGX 3,800,000 / month", closes_at: "2027-06-22", summary: "Coordinate medical supply tendering, vendor evaluation and public-sector contract compliance under PPDA guidelines.", requirements: ["Bachelor of Procurement & Supply Chain", "Procurement & PPDA", "Contract Drafting"], status: "Open", review_status: "approved", published_at: "2026-02-24", review_reason: "", applicants: 21 },
+    { id: "j11", title: "Corporate & Commercial Legal Associate", org_id: "o20", loc: "Kampala", mode: "On-site", employment_type: "Full time", salary: "UGX 4,000,000 / month", closes_at: "2027-06-28", summary: "Advise Ugandan and regional enterprises on corporate structuring, infrastructure PPPs and regulatory compliance.", requirements: ["LLB Honours", "LDC Bar Course", "Contract Drafting", "Legal Research"], status: "Open", review_status: "approved", published_at: "2026-02-26", review_reason: "", applicants: 16 },
+    { id: "j12", title: "Agronomy & Dairy Supply Chain Lead", org_id: "o17", loc: "Wakiso", mode: "On-site", employment_type: "Full time", salary: "UGX 2,900,000 / month", closes_at: "2027-06-14", summary: "Oversee smallholder cooperative milk sourcing, forage extension programmes and refrigerated fleet scheduling.", requirements: ["BSc Agriculture / Agribusiness", "Agribusiness", "Field Agronomy"], status: "Open", review_status: "approved", published_at: "2026-02-28", review_reason: "", applicants: 15 },
+    { id: "j13", title: "Public Health Surveillance & HMIS Officer", org_id: "o19", loc: "Kampala", mode: "On-site", employment_type: "Full time", salary: "UGX 4,400,000 / month", closes_at: "2027-06-30", summary: "Coordinate hospital DHIS2 clinical reporting, outbreak indicator tracking and quality improvement audits.", requirements: ["MBChB / BSc Public Health", "Clinical Data", "Health Informatics"], status: "Open", review_status: "approved", published_at: "2026-03-01", review_reason: "", applicants: 27 },
+    { id: "j14", title: "STEM Curriculum & Community Training Lead", org_id: "o18", loc: "Gulu", mode: "Hybrid", employment_type: "Contract", salary: "UGX 2,600,000 / month", closes_at: "2027-06-24", summary: "Deliver applied software, digital literacy and career coaching tracks for Northern Uganda university and TVET graduates.", requirements: ["BEd / BA Education / ICT", "Curriculum Design", "Stakeholder Engagement"], status: "Open", review_status: "approved", published_at: "2026-03-03", review_reason: "", applicants: 13 },
   ];
 
   const users: DbUser[] = [
@@ -496,6 +553,7 @@ function createInitialStore(): Store {
     { id: "u-employer-1", email: "hiring@lumenlabs.example", name: "Lumen Labs", role: "employer", password: "password123", org_id: "o4", created_at: "2026-01-15", is_active: true },
     { id: "u-admin-1", email: "office@makerere.ac.ug", name: "Makerere University", role: "admin", password: "password123", org_id: "o10", created_at: "2026-01-10", is_active: true },
     { id: "u-admin-2", email: "admin@example.com", name: "Admin User", role: "admin", password: "changeme", org_id: null, created_at: "2026-01-10", is_active: true },
+    { id: "u-employee-1", email: "james@uganda.example", name: "James Okello", role: "employee", password: "password123", org_id: "o16", created_at: "2026-01-22", is_active: true },
   ];
 
   const profiles = new Map<string, DbStudentProfile>();
@@ -574,13 +632,21 @@ function createInitialStore(): Store {
     is_premium: true,
   });
 
-  const chatGroups = [
+  const chatGroups: Store["chatGroups"] = [
     {
       id: "cg-1",
       name: "Makerere Placement Cohort 2026",
       type: "placement",
       description: "Official cohort channel for verified students and placement officers.",
-      member_ids: ["u-student-1", "u-admin-1", "u-employer-1"],
+      owner_id: "u-admin-1",
+      is_active: true,
+      member_ids: ["u-student-1", "u-admin-1", "u-employer-1", "u-admin-2"],
+      member_roles: {
+        "u-admin-1": "owner",
+        "u-admin-2": "admin",
+        "u-employer-1": "admin",
+        "u-student-1": "member",
+      },
       messages: [
         {
           id: "cm-1",
@@ -602,6 +668,44 @@ function createInitialStore(): Store {
           translations: {},
           translated_content: null,
           sender_name: "Makerere University",
+        },
+      ],
+    },
+    {
+      id: "cg-2",
+      name: "Kampala Graduates & Engineers Guild",
+      type: "mixed",
+      description: "Open coordination channel for Ugandan graduates, employers and career mentors.",
+      owner_id: "u-admin-1",
+      is_active: true,
+      member_ids: ["u-jobseeker-1", "u-employee-1", "u-employer-1", "u-admin-1"],
+      member_roles: {
+        "u-admin-1": "owner",
+        "u-employer-1": "admin",
+        "u-jobseeker-1": "member",
+        "u-employee-1": "member",
+      },
+      messages: [
+        {
+          id: "cm-2",
+          group_id: "cg-2",
+          sender_id: "u-employee-1",
+          recipient_id: null,
+          type: "text",
+          content: "Welcome! Feel free to ask about graduate interviews, CPA/UIPE tracks and Ugandan employer expectations.",
+          original_language: "en",
+          duration_seconds: null,
+          file_name: null,
+          file_size: null,
+          mime_type: null,
+          created_at: nowIso,
+          updated_at: null,
+          deleted_at: null,
+          is_edited: false,
+          reply_to_id: null,
+          translations: {},
+          translated_content: null,
+          sender_name: "James Okello",
         },
       ],
     },
@@ -673,7 +777,30 @@ function createInitialStore(): Store {
     ]),
     actionLogs: [],
     chatGroups,
-    directMessages: [],
+    directMessages: [
+      {
+        id: "dm-seed-1",
+        group_id: null,
+        sender_id: "u-employer-1",
+        recipient_id: "u-student-1",
+        type: "text",
+        content: "Hi Amina, we reviewed your Product Design portfolio and would love to schedule a brief portfolio walkthrough this week.",
+        original_language: "en",
+        duration_seconds: null,
+        file_name: null,
+        file_size: null,
+        mime_type: null,
+        created_at: nowIso,
+        updated_at: null,
+        deleted_at: null,
+        is_edited: false,
+        reply_to_id: null,
+        translations: {},
+        translated_content: null,
+        sender_name: "Lumen Labs",
+      },
+    ],
+    threadReadAt: new Map(),
     testimonials,
   };
 }
@@ -1196,6 +1323,22 @@ export async function handleApiRequest(
     }
   }
 
+  if (method === "GET" && path === "/resume/download") {
+    const user = getCurrentUser(req, store);
+    if (!user) return jsonErr(401, "Not authenticated");
+    const r = store.resumes.get(user.id);
+    if (!r) return jsonErr(404, "No resume uploaded");
+    const safeName = r.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const summary = `BrighterWorks Resume File\nCandidate: ${user.name}\nEmail: ${user.email}\nFilename: ${r.filename}\nUploaded: ${r.uploaded_at}\n`;
+    return new NextResponse(summary, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${safeName}"`,
+      },
+    });
+  }
+
   if (method === "GET" && path === "/documents") {
     const user = getCurrentUser(req, store);
     if (!user) return jsonErr(401, "Not authenticated");
@@ -1577,11 +1720,25 @@ export async function handleApiRequest(
   }
 
   if (method === "GET" && path === "/organization/shortlisted") {
-    return NextResponse.json(store.applications.filter((a) => a.shortlisted));
+    return NextResponse.json(
+      store.applications
+        .filter((a) => a.shortlisted)
+        .map((a) => {
+          const u = store.users.find((x) => x.id === a.user_id);
+          return { ...a, user_name: u?.name || "Candidate", user_email: u?.email || "" };
+        })
+    );
   }
 
   if (method === "GET" && path === "/organization/shortlisted/jobs") {
-    return NextResponse.json(store.jobApplications.filter((a) => a.shortlisted));
+    return NextResponse.json(
+      store.jobApplications
+        .filter((a) => a.shortlisted)
+        .map((a) => {
+          const u = store.users.find((x) => x.id === a.user_id);
+          return { ...a, user_name: u?.name || "Candidate", user_email: u?.email || "" };
+        })
+    );
   }
 
   if (method === "GET" && pathParts.length === 4 && pathParts[0] === "organization" && pathParts[1] === "applicants" && pathParts[3] === "detail") {
@@ -2187,75 +2344,271 @@ export async function handleApiRequest(
   }
 
   // ---- Chat / Messaging ----
+  const initialsOf = (n: string) => {
+    const parts = (n || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "··";
+    return parts.length === 1 ? parts[0].slice(0, 2).toUpperCase() : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  const VALID_GROUP_TYPES = new Set(["placement", "student", "employer", "organization", "mixed", "admin"]);
+
+  const buildGroupThread = (g: Store["chatGroups"][number], userId: string) => {
+    const activeMsgs = g.messages.filter((m) => !m.deleted_at);
+    const last = activeMsgs[activeMsgs.length - 1] || null;
+    const readMap = store.threadReadAt.get(userId) || {};
+    const lastRead = readMap[g.id];
+    const unread = activeMsgs.filter(
+      (m) => m.sender_id !== userId && (!lastRead || m.created_at > lastRead)
+    ).length;
+    return {
+      id: g.id,
+      kind: "group" as const,
+      title: g.name,
+      type: g.type,
+      description: g.description,
+      initials: initialsOf(g.name),
+      subtitle: `${g.member_ids.length} member${g.member_ids.length === 1 ? "" : "s"}`,
+      member_count: g.member_ids.length,
+      my_role: g.member_roles[userId] || "member",
+      unread_count: unread,
+      last_message: last
+        ? {
+            id: last.id,
+            content: last.content,
+            type: last.type,
+            sender_id: last.sender_id,
+            sender_name: last.sender_name,
+            created_at: last.created_at,
+            is_mine: last.sender_id === userId,
+          }
+        : null,
+      last_activity: last?.created_at || new Date().toISOString(),
+    };
+  };
+
   if (method === "GET" && path === "/chat/threads") {
     const user = getCurrentUser(req, store);
     if (!user) return jsonErr(401, "Not authenticated");
-    const threads = store.chatGroups.map((g) => {
-      const last = g.messages[g.messages.length - 1] || null;
-      return {
-        id: g.id,
-        kind: "group",
-        title: g.name,
-        type: g.type,
-        description: g.description,
-        initials: g.name.slice(0, 2).toUpperCase(),
-        subtitle: `${g.member_ids.length} members`,
-        member_count: g.member_ids.length,
-        my_role: "member",
-        unread_count: 0,
-        last_message: last
-          ? {
-              id: last.id,
-              content: last.content,
-              type: last.type,
-              sender_id: last.sender_id,
-              sender_name: last.sender_name,
-              created_at: last.created_at,
-              is_mine: last.sender_id === user.id,
-            }
-          : null,
-        last_activity: last?.created_at || new Date().toISOString(),
-      };
-    });
+    const groupThreads = store.chatGroups
+      .filter((g) => g.is_active && g.member_ids.includes(user.id))
+      .map((g) => buildGroupThread(g, user.id));
+
+    const directByOther = new Map<string, Store["directMessages"]>();
+    for (const m of store.directMessages) {
+      if (m.deleted_at) continue;
+      if (m.sender_id !== user.id && m.recipient_id !== user.id) continue;
+      const otherId = m.sender_id === user.id ? m.recipient_id : m.sender_id;
+      if (!otherId) continue;
+      const list = directByOther.get(otherId) || [];
+      list.push(m);
+      directByOther.set(otherId, list);
+    }
+
+    const readMap = store.threadReadAt.get(user.id) || {};
+    const directThreads = Array.from(directByOther.entries())
+      .map(([otherId, msgs]) => {
+        const other = store.users.find((u) => u.id === otherId && u.is_active);
+        if (!other) return null;
+        const last = msgs[msgs.length - 1];
+        const threadKey = `dm:${otherId}`;
+        const lastRead = readMap[threadKey];
+        const unread = msgs.filter(
+          (m) => m.sender_id === otherId && (!lastRead || m.created_at > lastRead)
+        ).length;
+        return {
+          id: threadKey,
+          kind: "direct" as const,
+          title: other.name,
+          type: other.role,
+          description: "",
+          initials: initialsOf(other.name),
+          subtitle: other.role ? other.role.charAt(0).toUpperCase() + other.role.slice(1) : "Direct message",
+          member_count: 2,
+          my_role: "member",
+          unread_count: unread,
+          other_user: { id: other.id, name: other.name, role: other.role },
+          last_message: last
+            ? {
+                id: last.id,
+                content: last.content,
+                type: last.type,
+                sender_id: last.sender_id,
+                sender_name: last.sender_name,
+                created_at: last.created_at,
+                is_mine: last.sender_id === user.id,
+              }
+            : null,
+          last_activity: last?.created_at || new Date().toISOString(),
+        };
+      })
+      .filter((t): t is NonNullable<typeof t> => t !== null);
+
+    const threads = [...groupThreads, ...directThreads].sort((a, b) =>
+      b.last_activity.localeCompare(a.last_activity)
+    );
     return NextResponse.json({ threads });
   }
 
   if (method === "GET" && path === "/chat/groups") {
-    return NextResponse.json({ groups: store.chatGroups });
+    const user = getCurrentUser(req, store);
+    if (!user) return jsonErr(401, "Not authenticated");
+    const groups = store.chatGroups
+      .filter((g) => g.is_active && g.member_ids.includes(user.id))
+      .map((g) => buildGroupThread(g, user.id));
+    return NextResponse.json({ groups });
+  }
+
+  if (method === "POST" && path === "/chat/groups") {
+    const user = getCurrentUser(req, store);
+    if (!user) return jsonErr(401, "Not authenticated");
+    const name = String(body.name || "").trim();
+    if (!name || name.length > 120) {
+      return jsonErr(400, "Group name must be between 1 and 120 characters");
+    }
+    const gtype = String(body.type || "mixed");
+    if (!VALID_GROUP_TYPES.has(gtype)) {
+      return jsonErr(400, "Invalid group type");
+    }
+    if (gtype === "admin" && user.role !== "admin") {
+      return jsonErr(403, "Only admins can create placement office channels");
+    }
+    const requestedMembers = Array.isArray(body.member_ids)
+      ? body.member_ids.map((id: unknown) => String(id).trim()).filter(Boolean)
+      : [];
+    const activeUsersMap = new Map(store.users.filter((u) => u.is_active).map((u) => [u.id, u]));
+    for (const mid of requestedMembers) {
+      if (!activeUsersMap.has(mid)) {
+        return jsonErr(404, `User '${mid}' not found`);
+      }
+    }
+    const memberIds = Array.from(new Set([user.id, ...requestedMembers]));
+    const memberRoles: Record<string, string> = {};
+    for (const mid of memberIds) {
+      memberRoles[mid] = mid === user.id ? "owner" : "member";
+    }
+    const g = {
+      id: uid("cg"),
+      name,
+      type: gtype,
+      description: String(body.description || "").trim(),
+      owner_id: user.id,
+      is_active: true,
+      member_ids: memberIds,
+      member_roles: memberRoles,
+      messages: [],
+    };
+    store.chatGroups.push(g);
+    return NextResponse.json({ group: buildGroupThread(g, user.id) }, { status: 201 });
+  }
+
+  if (pathParts.length === 3 && pathParts[0] === "chat" && pathParts[1] === "groups") {
+    const user = getCurrentUser(req, store);
+    if (!user) return jsonErr(401, "Not authenticated");
+    const g = store.chatGroups.find((x) => x.id === pathParts[2] && x.is_active);
+    if (!g) return jsonErr(404, "Group not found");
+    const isMember = g.member_ids.includes(user.id);
+    const myRole = g.member_roles[user.id];
+
+    if (method === "GET") {
+      if (!isMember && user.role !== "admin") return jsonErr(403, "Not a member of this group");
+      return NextResponse.json({ group: buildGroupThread(g, user.id) });
+    }
+    if (method === "PATCH") {
+      if (!myRole || !["owner", "admin"].includes(myRole)) {
+        if (user.role !== "admin") return jsonErr(403, "Only group admins can update this group");
+      }
+      if (body.name !== undefined) {
+        const clean = String(body.name || "").trim();
+        if (!clean || clean.length > 120) {
+          return jsonErr(400, "Group name must be between 1 and 120 characters");
+        }
+        g.name = clean;
+      }
+      if (body.description !== undefined) {
+        g.description = String(body.description || "").trim();
+      }
+      return NextResponse.json({ group: buildGroupThread(g, user.id) });
+    }
+    if (method === "DELETE") {
+      if (myRole !== "owner" && user.role !== "admin") {
+        return jsonErr(403, "Only group owners can delete this group");
+      }
+      g.is_active = false;
+      return NextResponse.json({ ok: true });
+    }
   }
 
   if (method === "GET" && path === "/chat/direct") {
-    return NextResponse.json({ chats: [] });
+    const user = getCurrentUser(req, store);
+    if (!user) return jsonErr(401, "Not authenticated");
+    const byOther = new Map<string, Store["directMessages"]>();
+    for (const m of store.directMessages) {
+      if (m.deleted_at) continue;
+      if (m.sender_id !== user.id && m.recipient_id !== user.id) continue;
+      const otherId = m.sender_id === user.id ? m.recipient_id : m.sender_id;
+      if (!otherId) continue;
+      const list = byOther.get(otherId) || [];
+      list.push(m);
+      byOther.set(otherId, list);
+    }
+    const chats = Array.from(byOther.entries())
+      .map(([otherId, msgs]) => {
+        const other = store.users.find((u) => u.id === otherId && u.is_active);
+        if (!other) return null;
+        return {
+          other_user: { id: other.id, name: other.name, role: other.role },
+          last_message: msgs[msgs.length - 1] || null,
+        };
+      })
+      .filter(Boolean);
+    return NextResponse.json({ chats });
   }
 
   if (method === "GET" && path === "/chat/contacts") {
     const user = getCurrentUser(req, store);
+    if (!user) return jsonErr(401, "Not authenticated");
     const contacts = store.users
-      .filter((u) => u.id !== user?.id)
+      .filter((u) => u.is_active && u.id !== user.id)
       .map((u) => ({
         id: u.id,
         name: u.name,
         role: u.role,
-        initials: u.name.slice(0, 2).toUpperCase(),
+        initials: initialsOf(u.name),
       }));
     return NextResponse.json({ contacts });
   }
 
   if (pathParts.length === 4 && pathParts[0] === "chat" && pathParts[1] === "groups" && pathParts[3] === "messages") {
-    const g = store.chatGroups.find((x) => x.id === pathParts[2]);
+    const user = getCurrentUser(req, store);
+    if (!user) return jsonErr(401, "Not authenticated");
+    const g = store.chatGroups.find((x) => x.id === pathParts[2] && x.is_active);
     if (!g) return jsonErr(404, "Group not found");
-    if (method === "GET") return NextResponse.json({ messages: g.messages });
+    const isMember = g.member_ids.includes(user.id);
+    if (method === "GET") {
+      if (!isMember && user.role !== "admin") return jsonErr(403, "Not a member of this group");
+      const limit = Math.max(1, Math.min(200, Number(sp.get("limit") || 60)));
+      const msgs = g.messages.filter((m) => !m.deleted_at);
+      return NextResponse.json({ messages: msgs.slice(-limit) });
+    }
     if (method === "POST") {
-      const user = getCurrentUser(req, store);
-      if (!user) return jsonErr(401, "Not authenticated");
+      if (!isMember) return jsonErr(403, "Join the group before sending messages");
+      const msgType = String(body.type || "text");
+      const content = String(body.content || "").trim();
+      if (msgType === "text" && (!content || content.length > 4000)) {
+        return jsonErr(400, "Message content must be between 1 and 4000 characters");
+      }
+      const replyToId = body.reply_to_id ? String(body.reply_to_id) : null;
+      if (replyToId && !g.messages.some((m) => m.id === replyToId && !m.deleted_at)) {
+        return jsonErr(404, "Referenced reply message not found");
+      }
       const msg = {
         id: uid("cm"),
         group_id: g.id,
         sender_id: user.id,
         recipient_id: null,
-        type: String(body.type || "text"),
-        content: String(body.content || ""),
-        original_language: "en",
+        type: msgType,
+        content,
+        original_language: String(body.original_language || "en"),
         duration_seconds: null,
         file_name: null,
         file_size: null,
@@ -2264,7 +2617,7 @@ export async function handleApiRequest(
         updated_at: null,
         deleted_at: null,
         is_edited: false,
-        reply_to_id: null,
+        reply_to_id: replyToId,
         translations: {},
         translated_content: null,
         sender_name: user.name,
@@ -2274,56 +2627,173 @@ export async function handleApiRequest(
     }
   }
 
-  if (method === "GET" && pathParts.length === 4 && pathParts[0] === "chat" && pathParts[1] === "groups" && pathParts[3] === "members") {
-    const g = store.chatGroups.find((x) => x.id === pathParts[2]);
-    if (!g) return jsonErr(404, "Group not found");
-    const participants = g.member_ids.map((id) => {
-      const u = store.users.find((x) => x.id === id);
-      return {
-        id: `${g.id}-${id}`,
-        group_id: g.id,
-        user_id: id,
-        role: "member",
-        joined_at: "2026-01-15T00:00:00Z",
-        is_muted: false,
-        name: u?.name || "Member",
-        initials: (u?.name || "MB").slice(0, 2).toUpperCase(),
-      };
-    });
-    return NextResponse.json({ participants });
-  }
-
-  if (method === "POST" && path === "/chat/groups") {
+  if (pathParts.length === 4 && pathParts[0] === "chat" && pathParts[1] === "groups" && pathParts[3] === "members") {
     const user = getCurrentUser(req, store);
     if (!user) return jsonErr(401, "Not authenticated");
-    const g = {
-      id: uid("cg"),
-      name: String(body.name || "New Group"),
-      type: String(body.type || "mixed"),
-      description: String(body.description || ""),
-      member_ids: Array.from(new Set([user.id, ...(Array.isArray(body.member_ids) ? body.member_ids : [])])),
-      messages: [],
-    };
-    store.chatGroups.push(g);
-    return NextResponse.json({
-      group: {
-        id: g.id,
-        kind: "group",
-        title: g.name,
-        type: g.type,
-        description: g.description,
-        initials: g.name.slice(0, 2).toUpperCase(),
-        subtitle: `${g.member_ids.length} members`,
-        member_count: g.member_ids.length,
-        my_role: "owner",
-        unread_count: 0,
-        last_message: null,
-        last_activity: new Date().toISOString(),
-      },
-    });
+    const g = store.chatGroups.find((x) => x.id === pathParts[2] && x.is_active);
+    if (!g) return jsonErr(404, "Group not found");
+    const isMember = g.member_ids.includes(user.id);
+    const myRole = g.member_roles[user.id];
+
+    if (method === "GET") {
+      if (!isMember && user.role !== "admin") return jsonErr(403, "Not a member of this group");
+      const participants = g.member_ids.map((id) => {
+        const u = store.users.find((x) => x.id === id);
+        return {
+          id: `${g.id}-${id}`,
+          group_id: g.id,
+          user_id: id,
+          role: g.member_roles[id] || "member",
+          joined_at: "2026-01-15T00:00:00Z",
+          is_muted: false,
+          name: u?.name || "Member",
+          initials: initialsOf(u?.name || "Member"),
+        };
+      });
+      return NextResponse.json({ participants });
+    }
+
+    if (method === "POST") {
+      if ((!myRole || !["owner", "admin"].includes(myRole)) && user.role !== "admin") {
+        return jsonErr(403, "Only group admins can add members");
+      }
+      const targetUserId = String(body.user_id || "").trim();
+      const targetRole = String(body.role || "member").trim();
+      if (!["member", "admin"].includes(targetRole)) {
+        return jsonErr(400, "Invalid participant role");
+      }
+      if (targetRole === "admin" && myRole !== "owner" && user.role !== "admin") {
+        return jsonErr(403, "Only group owners can promote members to admin");
+      }
+      const target = store.users.find((u) => u.id === targetUserId && u.is_active);
+      if (!target) return jsonErr(404, "User not found");
+      if (g.member_ids.includes(targetUserId)) {
+        return jsonErr(409, "User is already a member of this group");
+      }
+      g.member_ids.push(targetUserId);
+      g.member_roles[targetUserId] = targetRole;
+      return NextResponse.json({
+        participant: {
+          id: `${g.id}-${targetUserId}`,
+          group_id: g.id,
+          user_id: targetUserId,
+          role: targetRole,
+          joined_at: new Date().toISOString(),
+          is_muted: false,
+          name: target.name,
+          initials: initialsOf(target.name),
+        },
+      }, { status: 201 });
+    }
   }
 
-  if (method === "POST" && path.startsWith("/chat/threads/") && path.endsWith("/read")) {
+  if (pathParts.length === 5 && pathParts[0] === "chat" && pathParts[1] === "groups" && pathParts[3] === "members") {
+    const user = getCurrentUser(req, store);
+    if (!user) return jsonErr(401, "Not authenticated");
+    const g = store.chatGroups.find((x) => x.id === pathParts[2] && x.is_active);
+    if (!g) return jsonErr(404, "Group not found");
+    const targetUserId = pathParts[4];
+    if (!g.member_ids.includes(targetUserId)) return jsonErr(404, "Member not found");
+    const myRole = g.member_roles[user.id];
+
+    if (method === "PATCH") {
+      const canManage = myRole === "owner" || myRole === "admin" || user.role === "admin";
+      if (!canManage && targetUserId !== user.id) {
+        return jsonErr(403, "Not authorized to update member");
+      }
+      if (body.role !== undefined) {
+        const nextRole = String(body.role);
+        if (!["member", "admin"].includes(nextRole)) return jsonErr(400, "Invalid role");
+        if (myRole !== "owner" && user.role !== "admin") {
+          return jsonErr(403, "Only owners can change member roles");
+        }
+        if (g.member_roles[targetUserId] === "owner") {
+          return jsonErr(400, "Cannot change the group owner's role");
+        }
+        g.member_roles[targetUserId] = nextRole;
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (method === "DELETE") {
+      const canRemove = myRole === "owner" || myRole === "admin" || user.role === "admin" || targetUserId === user.id;
+      if (!canRemove) return jsonErr(403, "Not authorized to remove member");
+      if (g.member_roles[targetUserId] === "owner" && user.role !== "admin" && targetUserId !== user.id) {
+        return jsonErr(403, "Cannot remove the group owner");
+      }
+      g.member_ids = g.member_ids.filter((id) => id !== targetUserId);
+      delete g.member_roles[targetUserId];
+      return NextResponse.json({ ok: true });
+    }
+  }
+
+  if (method === "POST" && pathParts.length === 4 && pathParts[0] === "chat" && pathParts[1] === "groups" && pathParts[3] === "leave") {
+    const user = getCurrentUser(req, store);
+    if (!user) return jsonErr(401, "Not authenticated");
+    const g = store.chatGroups.find((x) => x.id === pathParts[2] && x.is_active);
+    if (!g) return jsonErr(404, "Group not found");
+    if (!g.member_ids.includes(user.id)) return jsonErr(404, "Not a member of this group");
+    g.member_ids = g.member_ids.filter((id) => id !== user.id);
+    delete g.member_roles[user.id];
+    if (g.member_ids.length === 0) {
+      g.is_active = false;
+    } else if (g.owner_id === user.id) {
+      const nextOwner = g.member_ids[0];
+      g.owner_id = nextOwner;
+      g.member_roles[nextOwner] = "owner";
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  if (pathParts.length === 3 && pathParts[0] === "chat" && pathParts[1] === "messages") {
+    const user = getCurrentUser(req, store);
+    if (!user) return jsonErr(401, "Not authenticated");
+    const msgId = pathParts[2];
+    const groupMsg = store.chatGroups.flatMap((g) => g.messages).find((m) => m.id === msgId);
+    const directMsg = store.directMessages.find((m) => m.id === msgId);
+    const msg = groupMsg || directMsg;
+    if (!msg || msg.deleted_at) return jsonErr(404, "Message not found");
+
+    if (method === "PATCH") {
+      if (msg.sender_id !== user.id) return jsonErr(403, "You can only edit your own messages");
+      const content = String(body.content || "").trim();
+      if (!content || content.length > 4000) {
+        return jsonErr(400, "Message content must be between 1 and 4000 characters");
+      }
+      msg.content = content;
+      msg.is_edited = true;
+      msg.updated_at = new Date().toISOString();
+      return NextResponse.json({ message: msg });
+    }
+
+    if (method === "DELETE") {
+      const g = msg.group_id ? store.chatGroups.find((x) => x.id === msg.group_id) : null;
+      const gRole = g ? g.member_roles[user.id] : undefined;
+      const canDelete = msg.sender_id === user.id || user.role === "admin" || gRole === "owner" || gRole === "admin";
+      if (!canDelete) return jsonErr(403, "Not authorized to delete this message");
+      msg.deleted_at = new Date().toISOString();
+      return NextResponse.json({ ok: true });
+    }
+  }
+
+  if (method === "POST" && pathParts.length === 4 && pathParts[0] === "chat" && pathParts[1] === "threads" && pathParts[3] === "read") {
+    const user = getCurrentUser(req, store);
+    if (!user) return jsonErr(401, "Not authenticated");
+    const rawId = decodeURIComponent(pathParts[2]);
+    if (rawId.startsWith("dm:")) {
+      const otherId = rawId.slice(3);
+      const other = store.users.find((u) => u.id === otherId && u.is_active);
+      if (!other) return jsonErr(404, "Conversation partner not found");
+    } else {
+      const g = store.chatGroups.find((x) => x.id === rawId && x.is_active);
+      if (!g) return jsonErr(404, "Group not found");
+      if (!g.member_ids.includes(user.id) && user.role !== "admin") {
+        return jsonErr(403, "Not a member of this group");
+      }
+    }
+    const existing = store.threadReadAt.get(user.id) || {};
+    existing[rawId] = new Date().toISOString();
+    store.threadReadAt.set(user.id, existing);
     return NextResponse.json({ ok: true });
   }
 
@@ -2331,27 +2801,42 @@ export async function handleApiRequest(
     const user = getCurrentUser(req, store);
     if (!user) return jsonErr(401, "Not authenticated");
     const otherId = pathParts[2];
+    if (otherId === user.id) return jsonErr(400, "Cannot open a direct chat with yourself");
+    const other = store.users.find((u) => u.id === otherId && u.is_active);
+    if (!other) return jsonErr(404, "User not found");
     if (method === "GET") {
+      const limit = Math.max(1, Math.min(200, Number(sp.get("limit") || 60)));
       const messages = store.directMessages.filter(
         (m) =>
-          (m.sender_id === user.id && m.recipient_id === otherId) ||
-          (m.sender_id === otherId && m.recipient_id === user.id)
+          !m.deleted_at &&
+          ((m.sender_id === user.id && m.recipient_id === otherId) ||
+            (m.sender_id === otherId && m.recipient_id === user.id))
       );
-      return NextResponse.json({ messages });
+      return NextResponse.json({ messages: messages.slice(-limit) });
     }
   }
 
   if (method === "POST" && path === "/chat/direct") {
     const user = getCurrentUser(req, store);
     if (!user) return jsonErr(401, "Not authenticated");
+    const recipientId = String(body.recipient_id || "").trim();
+    if (!recipientId) return jsonErr(400, "Recipient is required");
+    if (recipientId === user.id) return jsonErr(400, "Cannot send a direct message to yourself");
+    const recipient = store.users.find((u) => u.id === recipientId && u.is_active);
+    if (!recipient) return jsonErr(404, "Recipient not found");
+    const msgType = String(body.type || "text");
+    const content = String(body.content || "").trim();
+    if (msgType === "text" && (!content || content.length > 4000)) {
+      return jsonErr(400, "Message content must be between 1 and 4000 characters");
+    }
     const msg = {
       id: uid("dm"),
       group_id: null,
       sender_id: user.id,
-      recipient_id: String(body.recipient_id || ""),
-      type: String(body.type || "text"),
-      content: String(body.content || ""),
-      original_language: "en",
+      recipient_id: recipientId,
+      type: msgType,
+      content,
+      original_language: String(body.original_language || "en"),
       duration_seconds: null,
       file_name: null,
       file_size: null,

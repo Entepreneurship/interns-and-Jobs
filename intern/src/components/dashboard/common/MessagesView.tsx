@@ -10,6 +10,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../../../context/AppContext";
 import { Icon } from "../../icons/Icons";
+import { API_BASE, getToken } from "../../../lib/api";
 import {
   ChatMessage,
   ChatPerson,
@@ -20,6 +21,7 @@ import {
   chatAvailable,
   createGroup,
   dayLabel,
+  deleteGroup,
   leaveGroup,
   listContacts,
   listMembers,
@@ -28,6 +30,7 @@ import {
   markThreadRead,
   messageBody,
   previewText,
+  removeMember,
   sendToThread,
   senderTint,
   threadStamp,
@@ -65,7 +68,7 @@ function Avatar({ thread, size = 44 }: { thread: ChatThread; size?: number }) {
 }
 
 export function MessagesView() {
-  const { session, role, toast } = useApp();
+  const { session, role, toast, openModal, pendingChatTarget, clearPendingChatTarget } = useApp();
 
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,14 +135,18 @@ export function MessagesView() {
     if (!canChat) {
       setLoading(false);
       setError(
-        "Messaging needs the API. Set NEXT_PUBLIC_API_BASE_URL to the backend and reload."
+        !API_BASE
+          ? "Messaging needs the API. Set NEXT_PUBLIC_API_BASE_URL to the backend and reload."
+          : !getToken()
+          ? "Sign in to view and send messages."
+          : "Messaging is currently unavailable."
       );
       return;
     }
     refreshThreads().then((list) => {
       if (!list.length) return;
       // Desktop: open the newest conversation so the pane is never a dead end.
-      if (window.matchMedia("(min-width: 961px)").matches) {
+      if (!pendingChatTarget && window.matchMedia("(min-width: 961px)").matches) {
         setActiveId((current) => current || list[0].id);
       }
     });
@@ -147,7 +154,7 @@ export function MessagesView() {
       if (document.visibilityState === "visible") void refreshThreads();
     }, 20000);
     return () => window.clearInterval(timer);
-  }, [canChat, refreshThreads]);
+  }, [canChat, refreshThreads, pendingChatTarget]);
 
   const loadMessages = useCallback(
     async (thread: ChatThread, quiet = false) => {
@@ -172,13 +179,14 @@ export function MessagesView() {
     }
     let cancelled = false;
     void loadMessages(thread);
-    if (thread.kind === "group" && !thread.id.startsWith("draft:") && !readRef.current.has(thread.id)) {
+    if (!thread.id.startsWith("draft:") && !readRef.current.has(thread.id)) {
       readRef.current.add(thread.id);
       void markThreadRead(thread.id)
         .then(() => {
           setThreads((list) =>
             list.map((t) => (t.id === thread.id ? { ...t, unread_count: 0 } : t))
           );
+          window.dispatchEvent(new Event("bw:chat-updated"));
         })
         .catch(() => readRef.current.delete(thread.id));
     }
@@ -208,7 +216,7 @@ export function MessagesView() {
 
   // ---- actions -------------------------------------------------------------
 
-  const openThread = (thread: ChatThread) => {
+  const openThread = useCallback((thread: ChatThread) => {
     setDraftThread(null);
     setActiveId(thread.id);
     setInfoOpen(false);
@@ -217,9 +225,19 @@ export function MessagesView() {
     setThreads((list) =>
       list.map((t) => (t.id === thread.id ? { ...t, unread_count: 0 } : t))
     );
-  };
+    window.dispatchEvent(new Event("bw:chat-updated"));
+  }, []);
 
-  const startDirect = (person: ChatPerson) => {
+  const startDirect = useCallback((person: ChatPerson) => {
+    const existing = threads.find(
+      (t) => t.kind === "direct" && t.other_user?.id === person.id
+    );
+    if (existing) {
+      setPickerMode(null);
+      openThread(existing);
+      window.setTimeout(() => composerRef.current?.focus(), 60);
+      return;
+    }
     const draft: ChatThread = {
       id: `draft:${person.id}`,
       kind: "direct",
@@ -241,7 +259,26 @@ export function MessagesView() {
     setMessages([]);
     setMobilePane("chat");
     window.setTimeout(() => composerRef.current?.focus(), 60);
-  };
+  }, [threads, openThread]);
+
+  useEffect(() => {
+    if (!pendingChatTarget || loading || !canChat) return;
+    if (session?.id && pendingChatTarget.id === session.id) {
+      clearPendingChatTarget();
+      return;
+    }
+    const parts = pendingChatTarget.name.trim().split(/\s+/).filter(Boolean);
+    const initials = parts.length <= 1
+      ? (parts[0] || "MB").slice(0, 2).toUpperCase()
+      : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    startDirect({
+      id: pendingChatTarget.id,
+      name: pendingChatTarget.name,
+      role: pendingChatTarget.role,
+      initials,
+    });
+    clearPendingChatTarget();
+  }, [pendingChatTarget, loading, canChat, session?.id, startDirect, clearPendingChatTarget]);
 
   const openPicker = async (mode: "group" | "direct" | "member") => {
     setPickerMode(mode);
@@ -257,6 +294,7 @@ export function MessagesView() {
   const onCreatedGroup = async (thread: ChatThread) => {
     setPickerMode(null);
     await refreshThreads();
+    window.dispatchEvent(new Event("bw:chat-updated"));
     setDraftThread(null);
     setActiveId(thread.id);
     setMobilePane("chat");
@@ -315,20 +353,39 @@ export function MessagesView() {
     }
   };
 
-  const onLeaveGroup = async () => {
+  const onLeaveGroup = () => {
     if (!active || active.kind !== "group") return;
-    if (!window.confirm(`Leave "${active.title}"? You will stop receiving its messages.`)) return;
-    try {
-      await leaveGroup(active.id);
-      setInfoOpen(false);
-      setActiveId(null);
-      setDraftThread(null);
-      setMobilePane("list");
-      await refreshThreads();
-      toast("You left the group");
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Could not leave the group");
-    }
+    const isSoleOwner = active.my_role === "owner" && active.member_count <= 1;
+    const targetGroup = active;
+    openModal(
+      isSoleOwner ? "Delete group" : "Leave group",
+      <p style={{ fontSize: "13px", lineHeight: 1.6, margin: 0 }}>
+        {isSoleOwner
+          ? `You are the only member left in "${targetGroup.title}". Leaving will archive this channel.`
+          : `Leave "${targetGroup.title}"? You will stop receiving its messages.`}
+      </p>,
+      isSoleOwner ? "Delete group" : "Leave group",
+      () => {
+        void (async () => {
+          try {
+            if (isSoleOwner) {
+              await deleteGroup(targetGroup.id);
+            } else {
+              await leaveGroup(targetGroup.id);
+            }
+            setInfoOpen(false);
+            setActiveId(null);
+            setDraftThread(null);
+            setMobilePane("list");
+            await refreshThreads();
+            window.dispatchEvent(new Event("bw:chat-updated"));
+            toast(isSoleOwner ? "Group archived" : "You left the group");
+          } catch (e) {
+            toast(e instanceof Error ? e.message : "Could not update the group");
+          }
+        })();
+      }
+    );
   };
 
   // ---- derived lists -------------------------------------------------------
@@ -697,34 +754,61 @@ export function MessagesView() {
           <div className="wa-info-block">
             <div className="wa-info-head">
               <span>Members</span>
-              <button
-                type="button"
-                className="wa-link"
-                onClick={() => void openPicker("member")}
-              >
-                Add
-              </button>
+              {(active.my_role === "owner" || active.my_role === "admin" || role === "admin") && (
+                <button
+                  type="button"
+                  className="wa-link"
+                  onClick={() => void openPicker("member")}
+                >
+                  Add
+                </button>
+              )}
             </div>
             <ul className="wa-members">
-              {members.map((member) => (
-                <li key={member.id}>
-                  <span className="wa-row-av" aria-hidden="true">
-                    {member.initials}
-                  </span>
-                  <span>
-                    <b>{member.name}</b>
-                    <em>{member.role}</em>
-                  </span>
-                </li>
-              ))}
+              {members.map((member) => {
+                const canManage = active.my_role === "owner" || active.my_role === "admin" || role === "admin";
+                const canRemoveMember = canManage && member.user_id !== session?.id && member.role !== "owner";
+                return (
+                  <li key={member.id}>
+                    <span className="wa-row-av" aria-hidden="true">
+                      {member.initials}
+                    </span>
+                    <span>
+                      <b>{member.name}</b>
+                      <em>{member.role}</em>
+                    </span>
+                    {canRemoveMember && (
+                      <button
+                        type="button"
+                        className="wa-link"
+                        style={{ marginLeft: "auto", color: "var(--red)" }}
+                        onClick={() => {
+                          void (async () => {
+                            try {
+                              await removeMember(active.id, member.user_id);
+                              setMembers(await listMembers(active.id));
+                              await refreshThreads();
+                              toast(`${member.name} removed`);
+                            } catch (e) {
+                              toast(e instanceof Error ? e.message : "Could not remove member");
+                            }
+                          })();
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
               {members.length === 0 && (
-                <li className="wa-muted">Only group admins can see the member list.</li>
+                <li className="wa-muted">Only group members can see the member list.</li>
               )}
             </ul>
           </div>
 
-          <button type="button" className="wa-btn danger" onClick={() => void onLeaveGroup()}>
-            <Icon name="x" size={13} /> Leave group
+          <button type="button" className="wa-btn danger" onClick={onLeaveGroup}>
+            <Icon name="x" size={13} /> {active.my_role === "owner" && active.member_count <= 1 ? "Delete group" : "Leave group"}
           </button>
         </aside>
       )}
@@ -733,7 +817,11 @@ export function MessagesView() {
       {pickerMode && (
         <PeoplePicker
           mode={pickerMode}
-          contacts={contacts}
+          contacts={
+            pickerMode === "member"
+              ? contacts.filter((c) => !members.some((m) => m.user_id === c.id))
+              : contacts
+          }
           onClose={() => setPickerMode(null)}
           onPick={(person) => {
             if (pickerMode === "member" && active) {
@@ -741,6 +829,7 @@ export function MessagesView() {
                 try {
                   await addMember(active.id, person.id);
                   setMembers(await listMembers(active.id));
+                  await refreshThreads();
                   toast(`${person.name} added to ${active.title}`);
                   setPickerMode(null);
                 } catch (e) {
@@ -837,7 +926,7 @@ function PeoplePicker({
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Nairobi Summer Placement 2026"
+                placeholder="e.g. Kampala Placement Cohort 2026"
                 autoFocus
               />
             </label>

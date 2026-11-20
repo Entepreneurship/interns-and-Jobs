@@ -81,10 +81,12 @@ class ChatService:
         )
         self._participants.add(owner)
         
-        # Add other members
+        # Add other members (deduplicated)
         if member_ids:
+            seen = {created_by}
             for uid in member_ids:
-                if uid != created_by:
+                if uid and uid not in seen:
+                    seen.add(uid)
                     member = GroupParticipant(
                         id=f"gp_{uuid4().hex[:10]}",
                         group_id=group_id,
@@ -110,6 +112,9 @@ class ChatService:
     def add_member(
         self, group_id: str, user_id: str, role: str = "member"
     ) -> GroupParticipant:
+        existing = self._participants.get(group_id, user_id)
+        if existing is not None:
+            return existing
         now = datetime.utcnow().isoformat()
         participant = GroupParticipant(
             id=f"gp_{uuid4().hex[:10]}",

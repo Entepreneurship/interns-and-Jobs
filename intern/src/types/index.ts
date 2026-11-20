@@ -289,6 +289,8 @@ export interface ApplicationDto {
 export interface JobApplicationDto {
   id: string;
   user_id: string;
+  user_name?: string;
+  user_email?: string;
   job_id: string;
   status: string;
   statement: string;

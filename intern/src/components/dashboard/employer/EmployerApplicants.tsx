@@ -114,7 +114,7 @@ function ShortlistedCard({ student, isInternship, onRemove, onView, onInvite }: 
 }
 
 export function EmployerApplicants() {
-  const { session, dashGo, toast } = useApp();
+  const { session, dashGo, toast, openDirectMessage } = useApp();
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [internshipApplicants, setInternshipApplicants] = useState<Record<string, ApplicationDto[]>>({});
@@ -582,7 +582,13 @@ function KanbanBoard() {
                       isInternship={isInternship}
                       onRemove={() => isInternship ? handleShortlistInternship(app.id, false) : handleShortlistJob(app.id, false)}
                       onView={() => setSelectedApplicantId(app.id)}
-                      onInvite={() => console.log("Invite", app.id)}
+                      onInvite={() =>
+                        openDirectMessage({
+                          id: app.user_id,
+                          name: app.user_name || `Candidate ${app.user_id.slice(0, 8)}`,
+                          role: isInternship ? "student" : "jobseeker",
+                        })
+                      }
                     />
                   );
                 })}
@@ -681,7 +687,13 @@ function KanbanBoard() {
                             <button
                               type="button"
                               className="btn btn-sm btn-ghost"
-                              onClick={() => console.log("Invite", app.id)}
+                              onClick={() =>
+                                openDirectMessage({
+                                  id: app.user_id,
+                                  name: app.user_name || `Candidate ${app.user_id.slice(0, 8)}`,
+                                  role: "student",
+                                })
+                              }
                             >
                               <Icon name="send" size={12} /> Invite
                             </button>

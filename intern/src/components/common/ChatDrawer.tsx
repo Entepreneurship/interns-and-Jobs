@@ -147,16 +147,28 @@ export function ChatDrawer() {
                     marginTop: "8px",
                   }}
                 >
-                  {msg.actions.map((action, idx) => (
-                    <button
-                      key={`${msg.id}-act-${idx}`}
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => handleAction(action)}
-                    >
-                      {action.label}
-                    </button>
-                  ))}
+                  {msg.actions.map((action, idx) =>
+                    action.type === "external_url" && typeof action.payload?.url === "string" ? (
+                      <a
+                        key={`${msg.id}-act-${idx}`}
+                        href={action.payload.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-sm"
+                      >
+                        {action.label}
+                      </a>
+                    ) : (
+                      <button
+                        key={`${msg.id}-act-${idx}`}
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => handleAction(action)}
+                      >
+                        {action.label}
+                      </button>
+                    )
+                  )}
                 </div>
               )}
             </div>

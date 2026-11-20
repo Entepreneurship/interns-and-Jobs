@@ -67,7 +67,7 @@ function SectionHeader({ title, icon, subtitle }: { title: string; icon?: IconNa
 }
 
 export function ApplicantDetailView({ applicationId, onClose }: { applicationId: string; onClose: () => void }) {
-  const { toast } = useApp();
+  const { toast, openDirectMessage } = useApp();
   const [detail, setDetail] = useState<ApplicantDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -145,7 +145,18 @@ export function ApplicantDetailView({ applicationId, onClose }: { applicationId:
           </div>
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
-          <button type="button" className="btn btn-blue" onClick={() => console.log("Message candidate")}>
+          <button
+            type="button"
+            className="btn btn-blue"
+            onClick={() => {
+              onClose();
+              openDirectMessage({
+                id: d.student_id,
+                name: d.student_name || `Candidate ${d.student_id.slice(0, 8)}`,
+                role: d.application_type === "job" ? "jobseeker" : "student",
+              });
+            }}
+          >
             <Icon name="send" size={14} /> Message
           </button>
           <button type="button" className="btn btn-ghost" onClick={onClose}>

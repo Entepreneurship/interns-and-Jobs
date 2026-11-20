@@ -66,7 +66,7 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 export function CompanyDetailView({ orgId, onClose }: CompanyDetailViewProps) {
-  const { session, toast } = useApp();
+  const { openModal } = useApp();
   const [org, setOrg] = React.useState<CompanyProfile | null>(null);
   const [jobs, setJobs] = React.useState<Job[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -186,7 +186,30 @@ export function CompanyDetailView({ orgId, onClose }: CompanyDetailViewProps) {
                 <button
                   type="button"
                   className="btn btn-sm btn-blue"
-                  onClick={() => { console.log("View job", job.id); }}
+                  onClick={() =>
+                    openModal(
+                      job.title,
+                      <div style={{ display: "grid", gap: "10px", fontSize: "13px", lineHeight: 1.55 }}>
+                        <div><b>Location:</b> {job.loc} · {job.mode}</div>
+                        <div><b>Employment type:</b> {job.employmentType}</div>
+                        {job.salary && <div><b>Compensation:</b> {job.salary}</div>}
+                        <div><b>Closes:</b> {job.closesAt}</div>
+                        {job.summary && <p style={{ margin: "4px 0 0" }}>{job.summary}</p>}
+                        {job.requirements?.length > 0 && (
+                          <div>
+                            <b>Requirements</b>
+                            <ul style={{ margin: "6px 0 0 18px", padding: 0 }}>
+                              {job.requirements.map((req, idx) => (
+                                <li key={idx}>{req}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>,
+                      "Close",
+                      null
+                    )
+                  }
                 >
                   <Icon name="arrow" size={13} /> View
                 </button>

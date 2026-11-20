@@ -691,7 +691,7 @@ export function SkillProfile() {
                     fontFamily: "inherit",
                     lineHeight: 1.6,
                   }}
-                  placeholder="e.g. I am a second-year student. I redesigned our church website in Figma and built the sign-up form with React. Last term I helped the clinic move their paper patient files into a spreadsheet and wrote the SQL for the monthly report."
+                  placeholder="e.g. I am a third-year student at Makerere University. I built a React & TypeScript portal, modelled water pipes in AutoCAD, or reconciled EFRIS VAT schedules in Excel during my industrial training."
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   maxLength={4000}

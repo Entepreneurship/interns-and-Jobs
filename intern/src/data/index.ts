@@ -46,6 +46,60 @@ export const GRAD_ROLES: GradRole[] = [
     type: "Contract",
     closes: "11 Apr",
   },
+  {
+    id: "g5",
+    title: "Tax Compliance & EFRIS Officer",
+    org: "Uganda Revenue Authority",
+    loc: "Kampala",
+    pay: "UGX 4.2M / mo",
+    type: "Full time",
+    closes: "15 Jun",
+  },
+  {
+    id: "g6",
+    title: "Full-Stack Software Engineer",
+    org: "SafeBoda Uganda",
+    loc: "Kampala",
+    pay: "UGX 5.5M / mo",
+    type: "Hybrid",
+    closes: "20 Jun",
+  },
+  {
+    id: "g7",
+    title: "Civil & Water Network Engineer",
+    org: "NWSC Uganda",
+    loc: "Jinja",
+    pay: "UGX 4.5M / mo",
+    type: "Full time",
+    closes: "18 Jun",
+  },
+  {
+    id: "g8",
+    title: "SME Credit & Relationship Officer",
+    org: "Centenary Bank Uganda",
+    loc: "Mbarara",
+    pay: "UGX 3.1M / mo",
+    type: "Full time",
+    closes: "12 Jun",
+  },
+  {
+    id: "g9",
+    title: "Corporate & Commercial Legal Associate",
+    org: "Katende, Ssempebwa & Co.",
+    loc: "Kampala",
+    pay: "UGX 4.0M / mo",
+    type: "Full time",
+    closes: "28 Jun",
+  },
+  {
+    id: "g10",
+    title: "Public Health HMIS Officer",
+    org: "Mulago National Referral Hospital",
+    loc: "Kampala",
+    pay: "UGX 4.4M / mo",
+    type: "Full time",
+    closes: "30 Jun",
+  },
 ];
 
 export const INITIAL_STUDENT: Student = {
@@ -382,6 +436,7 @@ export const NAV: Record<UserRole, [string, string, string][]> = {
   employee: [
     ["overview", "Overview", "01"],
     ["testimonial", "Testimonial", "02"],
+    ["messages", "Messages", "03"],
   ],
 };
 

@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useApp } from "../../../context/AppContext";
+import { API_BASE, getToken } from "../../../lib/api";
 import { Icon } from "../../icons/Icons";
 import styles from "./StudentDocs.module.css";
 
@@ -131,7 +132,24 @@ export function StudentDocs() {
             <button
               type="button"
               className="btn btn-sm"
-              onClick={() => window.open("/resume/download", "_blank")}
+              onClick={async () => {
+                try {
+                  const token = getToken();
+                  const res = await fetch(`${API_BASE}/resume/download`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                  });
+                  if (!res.ok) throw new Error("Download unavailable");
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download = resume.filename || "resume.pdf";
+                  link.click();
+                  URL.revokeObjectURL(url);
+                } catch {
+                  toast("Could not download resume right now");
+                }
+              }}
             >
               <Icon name="download" size={12} /> Download
             </button>

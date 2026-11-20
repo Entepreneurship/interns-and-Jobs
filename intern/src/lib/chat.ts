@@ -177,8 +177,18 @@ export async function addMember(groupId: string, userId: string): Promise<void> 
   });
 }
 
+export async function removeMember(groupId: string, userId: string): Promise<void> {
+  await request(`/chat/groups/${groupId}/members/${userId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function leaveGroup(groupId: string): Promise<void> {
   await request(`/chat/groups/${groupId}/leave`, { method: "POST" });
+}
+
+export async function deleteGroup(groupId: string): Promise<void> {
+  await request(`/chat/groups/${groupId}`, { method: "DELETE" });
 }
 
 // ---- Presentation helpers --------------------------------------------------

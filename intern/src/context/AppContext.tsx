@@ -163,7 +163,9 @@ function toLocalSubscription(s: SubscriptionDto): Subscription {
 // The four dashboards are selected by an account's role. Guard against a bad
 // value from the API so role-dependent lookups stay total.
 function mapApiRole(r: string): UserRole {
-  return r === "jobseeker" || r === "employer" || r === "admin" ? r : "student";
+  return r === "jobseeker" || r === "employer" || r === "admin" || r === "employee"
+    ? r
+    : "student";
 }
 
 interface AppContextType {
@@ -273,6 +275,9 @@ interface AppContextType {
   closeChat: () => void;
   sendChat: (text: string) => void;
   askChat: (text: string) => void;
+  pendingChatTarget: { id: string; name: string; role: string } | null;
+  openDirectMessage: (person: { id: string; name: string; role: string }) => void;
+  clearPendingChatTarget: () => void;
 
   // Domain Actions
   applyTo: (id: string) => void;
@@ -333,6 +338,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [planSeg, setPlanSeg] = useState<string>("companies");
   const [role, setRole] = useState<UserRole>("student");
   const [dash, setDash] = useState<DashboardView>("overview");
+  const [pendingChatTarget, setPendingChatTarget] = useState<{ id: string; name: string; role: string } | null>(null);
   // The signed-in account (id/email/name/role). Null until /auth/me or a login
   // resolves. It is the single source of identity for the whole app now.
   const [session, setSession] = useState<ApiUser | null>(null);
@@ -871,6 +877,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [role]
   );
 
+  const openDirectMessage = useCallback(
+    (person: { id: string; name: string; role: string }) => {
+      setPendingChatTarget(person);
+      dashGo("messages");
+    },
+    [dashGo]
+  );
+
+  const clearPendingChatTarget = useCallback(() => {
+    setPendingChatTarget(null);
+  }, []);
+
   // Chat assistant logic
   const answerChat = useCallback(
     (query: string): { reply: string; actions: AdvisorAction[] } => {
@@ -918,20 +936,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (handoffState.step === "collecting_method") {
           if (q.includes("whatsapp") || q.includes("whats")) {
             setHandoffState({ ...handoffState, preferredContact: "whatsapp", step: "complete" });
-            const whatsappUrl = `https://wa.me/${handoffState.countryCode.replace("+", "")}${handoffState.phone.replace(/\D/g, "")}?text=Hello%20Brightworks%20Support%2C%20I%20need%20assistance.`;
-            window.open(whatsappUrl, "_blank");
-            return { 
-              reply: `Perfect! I've opened WhatsApp for you. Our support team will message you there shortly. They have your email (${handoffState.email}) and phone (${handoffState.phone}).`, 
-              actions: [] 
+            const whatsappUrl = `https://wa.me/${handoffState.countryCode.replace("+", "")}${handoffState.phone.replace(/\D/g, "")}?text=Hello%20BrighterWorks%20Support%2C%20I%20need%20assistance.`;
+            return {
+              reply: `Ready! Use the button below to message our support team on WhatsApp. They have your email (${handoffState.email}) and phone (${handoffState.phone}).`,
+              actions: [{ type: "external_url", label: "Open WhatsApp", payload: { url: whatsappUrl } }],
             };
           }
           if (q.includes("email") || q.includes("mail")) {
             setHandoffState({ ...handoffState, preferredContact: "email", step: "complete" });
-            const mailtoUrl = `mailto:support@brightworks.com?subject=Support%20Request&body=Hello%20Brightworks%20Support%2C%0A%0AI%20need%20assistance.%0A%0AEmail%3A%20${encodeURIComponent(handoffState.email)}%0APhone%3A%20${encodeURIComponent(handoffState.phone)}`;
-            window.open(mailtoUrl, "_blank");
-            return { 
-              reply: `Perfect! I've opened your email client. Our support team will reach out to ${handoffState.email} shortly. They also have your phone (${handoffState.phone}).`, 
-              actions: [] 
+            const mailtoUrl = `mailto:akandwanahojonan256@gmail.com?subject=BrighterWorks%20Support%20Request&body=Hello%20BrighterWorks%20Support%2C%0A%0AI%20need%20assistance.%0A%0AEmail%3A%20${encodeURIComponent(handoffState.email)}%0APhone%3A%20${encodeURIComponent(handoffState.phone)}`;
+            return {
+              reply: `Ready! Use the button below to email our support desk, or write directly to akandwanahojonan256@gmail.com.`,
+              actions: [{ type: "external_url", label: "Compose email", payload: { url: mailtoUrl } }],
             };
           }
           return { 
@@ -2280,6 +2296,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         closeChat,
         sendChat,
         askChat,
+        pendingChatTarget,
+        openDirectMessage,
+        clearPendingChatTarget,
 
         applyTo,
         reviewStudent,

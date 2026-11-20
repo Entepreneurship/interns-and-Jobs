@@ -31,7 +31,7 @@ const LEVELS = ["", "Beginner", "Intermediate", "Advanced"];
 const RESOURCE_TYPES = ["Course", "Video", "Article", "Guide", "Workshop", "Other"];
 
 export function AdminLearning() {
-  const { session, placements, toast } = useApp();
+  const { session, placements, toast, openModal } = useApp();
   const [resources, setResources] = useState<LearningResource[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
@@ -134,27 +134,32 @@ export function AdminLearning() {
     }
   };
 
-  const handleDelete = async (resource: LearningResource) => {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(`Remove "${resource.title}" from the catalogue?`)
-    ) {
-      return;
-    }
-    setDeletingId(resource.id);
-    try {
-      await deleteLearningResource(resource.id);
-      setResources((prev) => prev.filter((r) => r.id !== resource.id));
-      toast("Learning resource removed");
-    } catch (cause) {
-      toast(
-        cause instanceof ApiError
-          ? cause.message
-          : "Could not remove the learning resource"
-      );
-    } finally {
-      setDeletingId(null);
-    }
+  const handleDelete = (resource: LearningResource) => {
+    openModal(
+      "Remove learning resource",
+      <p style={{ fontSize: "13px", lineHeight: 1.6, margin: 0 }}>
+        Remove &ldquo;{resource.title}&rdquo; from the catalogue?
+      </p>,
+      "Remove",
+      () => {
+        void (async () => {
+          setDeletingId(resource.id);
+          try {
+            await deleteLearningResource(resource.id);
+            setResources((prev) => prev.filter((r) => r.id !== resource.id));
+            toast("Learning resource removed");
+          } catch (cause) {
+            toast(
+              cause instanceof ApiError
+                ? cause.message
+                : "Could not remove the learning resource"
+            );
+          } finally {
+            setDeletingId(null);
+          }
+        })();
+      }
+    );
   };
 
   return (
